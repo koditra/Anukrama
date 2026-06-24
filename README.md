@@ -61,7 +61,7 @@ source/  → main application source code
 audio/   → PCM audio recordings
 meta/    → verse metadata
 verses/  → Sanskrit and English verse text
-build/   → generated build files
+build/   → generated build files (you will get these after building/see next step)
 ```
 
 ## Building
@@ -99,7 +99,7 @@ Anukrama.nro
 * Chanting score system
 * Voice recognition
 * Practice statistics
-* Multiplayer VS mode
+* A Better Multiplayer VS mode
 * Improved UI and animations
 * Progress tracking
 
