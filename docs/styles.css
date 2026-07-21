@@ -177,10 +177,53 @@ h1{
 
 .secondary:hover{background:var(--gold);color:white}
 
-.hero-image img{
-  border-radius:var(--radius);
+.hero-gallery {
+    display: grid;
 
-  box-shadow:var(--shadow);
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+
+    gap: 1rem;
+}
+
+.large-shot {
+    grid-row: span 2;
+}
+
+.hero-gallery img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    border-radius: 18px;
+
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+
+    transition: transform .25s ease;
+}
+
+.hero-gallery img:hover {
+    transform: scale(1.03);
+}
+
+.hero-gallery figure {
+    margin: 0;
+    position: relative;
+}
+
+.hero-gallery figcaption {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+
+    font-size: 0.9rem;
 }
 
 .section{padding:5rem 0}
