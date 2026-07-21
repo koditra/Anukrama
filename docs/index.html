@@ -1,212 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anukrama</title>
-    <meta name="description" content="Practice and memorize Bhagavad Gita verses on your Nintendo Switch.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anukrama</title>
+  <meta name="description" content="Practice and memorize Bhagavad Gita verses on your Nintendo Switch.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header class="navbar">
-        <div class="nav-left">
-            <a href="https://hackclub.com" target="_blank">
-                <img src="https://assets.hackclub.com/flag-orpheus-top.svg" alt="Hack Club" class="hackclub-logo">
-            </a>
-            <img src="https://agffoundation.org/wp-content/uploads/2024/01/Chinmaya-Mission.png" alt="Chinmaya Mission" class="chinmaya-logo">
-        </div>
+<header class="navbar">
+  <a class="logo-left" href="https://hackclub.com" target="_blank" rel="noopener">
+    <img class="hackclub-logo" src="https://assets.hackclub.com/flag-orpheus-top.svg" alt="Hack Club">
+  </a>
 
-        <button class="menu-toggle" aria-label="Open menu">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
+  <nav>
+    <ul class="nav-links">
+      <li><a href="#motive">Motives</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#gameplay">Gameplay</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#download">Download</a></li>
+      <li><a href="https://github.com/koditra/Anukrama" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </nav>
 
-        <ul class="nav-links">
-            <li><a href="#motive">Motives</a></li>
-            <li><a href="#features">Features</a></li>
-            <li><a href="#gameplay">Gameplay</a></li>
-            <li><a href="#roadmap">Roadmap</a></li>
-            <li><a href="#download">Download</a></li>
-            <li><a href="https://github.com/koditra/Anukrama" target="_blank">GitHub</a></li>
-        </ul>
-    </header>
+  <a class="logo-right" href="https://cmsj.org" target="_blank" rel="noopener">
+    <img class="chinmaya-logo" src="https://agffoundation.org/wp-content/uploads/2024/01/Chinmaya-Mission.png" alt="Chinmaya Mission">
+  </a>
+</header>
 
-    <main>
-        <section class="hero">
-            <div class="hero-text">
-                <p class="sanskrit">अनुक्रम</p>
-                <h1>Anukrama</h1>
-                <p class="hero-description">
-                    Practice and memorize the Bhagavad Gita one verse at a time on your Nintendo Switch.
-                </p>
-                <div class="hero-buttons">
-                    <a href="#download" class="button primary">Download Latest Release</a>
-                    <a href="#gameplay" class="button secondary">Watch Gameplay</a>
-                </div>
-            </div>
+<main>
+<section class="hero">
+<div class="hero-text">
+<p class="sanskrit">अनुक्रम</p>
+<h1>Anukrama</h1>
+<p class="hero-description">Practice and memorize the Bhagavad Gita one verse at a time on your Nintendo Switch.</p>
+<div class="hero-buttons">
+<a class="button primary" href="#download">Download Latest Release</a>
+<a class="button secondary" href="#gameplay">Watch Gameplay</a>
+</div>
+</div>
+<div class="hero-image">
+<img src="screenshots/solo-practice-mode.jpg" alt="Anukrama running on Nintendo Switch" loading="eager">
+</div>
+</section>
 
-            <div class="hero-image">
-                <img src="assets/hero-switch.png" alt="Anukrama running on Nintendo Switch">
-            </div>
-        </section>
+<section id="motive" class="section"><div class="container">
+<h2>Motives</h2>
+<p>This started as a project for myself. While practicing Bhagavad Gita verses, I realized there wasn't an easy way to quiz myself without someone else helping. I thought my Nintendo Switch would actually make a fun platform for it, so I built Anukrama. Hopefully it helps other people memorize verses as much as it helps me.</p>
+</div></section>
 
-        <section id="motive" class="section">
-            <div class="container">
-                <h2>Motives</h2>
-                <p>
-                    This started as a project for myself. While practicing Bhagavad Gita verses, I realized there wasn't an easy way to quiz myself without someone else helping. I thought my Nintendo Switch would actually make a fun platform for it, so I built Anukrama. Hopefully it helps other people memorize verses as much as it helps me.
-                </p>
-            </div>
-        </section>
+<section class="section"><div class="container">
+<h2>How It Works</h2>
+<div class="steps">
+<div class="step"><span class="step-number">1</span><h3>Choose a verse</h3><p>Pick the verse you want to practice.</p></div>
+<div class="step"><span class="step-number">2</span><h3>Read the prompt</h3><p>The previous quarter of the verse is shown on screen.</p></div>
+<div class="step"><span class="step-number">3</span><h3>Chant</h3><p>Recite the next quarter from memory.</p></div>
+<div class="step"><span class="step-number">4</span><h3>Move to the next verse!</h3><p>Press A to move to the next prompt!</p></div>
+</div></div></section>
 
-        <section class="section">
-            <div class="container">
-                <h2>How It Works</h2>
+<section id="gameplay" class="section"><div class="container">
+<h2>Gameplay</h2>
+<p class="section-text">See how Anukrama is used!</p>
+<div class="video-wrapper">
+<iframe
+    src="https://www.youtube.com/embed/lKxqiLHLcBI"
+    title="Anukrama Gameplay"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    referrerpolicy="strict-origin-when-cross-origin"
+    allowfullscreen>
+</iframe>
 
-                <div class="steps">
-                    <div class="step">
-                        <span class="step-number">1</span>
-                        <h3>Choose a verse</h3>
-                        <p>Pick the verse you want to practice.</p>
-                    </div>
+<section id="features" class="section"><div class="container">
+<h2>Features</h2>
+<div class="features-grid">
+<div class="feature-card"><h3>Guided Verse Practice</h3><p>Practice one verse at a time!</p></div>
+<div class="feature-card"><h3>Sanskrit Audio</h3><p>Listen and perfect pronunciation thanks to Chinmaya Mission's audio recordings.</p></div>
+<div class="feature-card"><h3>English Transliteration</h3><p>Easy-to-read english transliteration included!</p></div>
+<div class="feature-card"><h3>Local VS Mode</h3><p>Challenge a friend! (on the same Switch).</p></div>
+<div class="feature-card"><h3>Includes important verses</h3><p>Includes all 20 verses of Chapter 15!</p></div>
+<div class="feature-card"><h3>Nintendo Switch Homebrew</h3><p>Built natively using C and libnx.</p></div>
+<div class="feature-card"><h3>Open Source</h3><p>Contribute on our GitHub!</p></div>
+<div class="feature-card"><h3>Fast Loading</h3><p>The game is very light-weight and launches instantly.</p></div>
+</div></div></section>
 
-                    <div class="step">
-                        <span class="step-number">2</span>
-                        <h3>Read the prompt</h3>
-                        <p>The previous quarter of the verse is shown on screen.</p>
-                    </div>
+<section id="roadmap" class="section"><div class="container">
+<h2>Roadmap</h2>
+<div class="roadmap-list">
+<div class="roadmap-item complete"><span>Add basic UI</span></div>
+<div class="roadmap-item complete"><span>Add Chapter 15</span></div>
+<div class="roadmap-item"><span>Add more Gita chapters</span></div>
+<div class="roadmap-item"><span>Add more cool ways to play the game.</span></div>
+<div class="roadmap-item"><span>An AI that is able to grade your recordings.</span></div>
+</div></div></section>
 
-                    <div class="step">
-                        <span class="step-number">3</span>
-                        <h3>Chant</h3>
-                        <p>Recite the next quarter from memory.</p>
-                    </div>
+<section id="download" class="section"><div class="container download-box">
+<h2>Download Latest Release</h2>
+<p>Download the newest build of Anukrama for your Nintendo Switch or Emulator.</p>
+<a class="button primary" href="https://github.com/koditra/Anukrama/releases/latest" target="_blank" rel="noopener">Download Latest Release</a>
+</div></section>
+</main>
 
-                    <div class="step">
-                        <span class="step-number">4</span>
-                        <h3>Move to the next verse!</h3>
-                        <p>Press A to move to the next prompt!</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="gameplay" class="section">
-            <div class="container">
-                <h2>Gameplay</h2>
-                <p class="section-text">See how Anukrama is used!</p>
-
-                <div class="video-wrapper">
-                    <iframe
-                        src="https://www.youtube.com/embed/lKxqiLHLcBI"
-                        title="Anukrama Gameplay"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        referrerpolicy="strict-origin-when-cross-origin"
-                        allowfullscreen>
-                    </iframe>
-                </div>
-            </div>
-        </section>
-
-        <section id="features" class="section">
-            <div class="container">
-                <h2>Features</h2>
-
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <h3>Guided Verse Practice</h3>
-                        <p>Practice one verse at a time!</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Sanskrit Audio</h3>
-                        <p>Listen and perfect pronunciation thanks to Chinmaya Mission's audio recordings.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>English Transliteration</h3>
-                        <p>Easy-to-read english transliteration included!</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Local VS Mode</h3>
-                        <p>Challenge a friend! (on the same Switch).</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Includes important verses</h3>
-                        <p>Includes all 20 verses of Chapter 15!</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Nintendo Switch Homebrew</h3>
-                        <p>Built natively using C and libnx.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Open Source</h3>
-                        <p>Contribute on our GitHub!</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <h3>Fast Loading</h3>
-                        <p>The game is very light-weight and launches instantly.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="roadmap" class="section">
-            <div class="container">
-                <h2>Roadmap</h2>
-
-                <div class="roadmap-list">
-                    <div class="roadmap-item complete">
-                        <span>Add basic UI</span>
-                    </div>
-
-                    <div class="roadmap-item complete">
-                        <span>Add Chapter 15</span>
-                    </div>
-
-                    <div class="roadmap-item">
-                        <span>Add more Gita chapters</span>
-                    </div>
-
-                    <div class="roadmap-item">
-                        <span>Add more cool ways to play the game.</span>
-                    </div>
-
-                    <div class="roadmap-item">
-                        <span>An AI that is able to grade your recordings.</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="download" class="section">
-            <div class="container download-box">
-                <h2>Download Latest Release</h2>
-                <p>
-                    Download the newest build of Anukrama for your Nintendo Switch or Emulator.
-                </p>
-
-                <a href="https://github.com/koditra/Anukrama/releases/latest" class="button primary" target="_blank">
-                    Download Latest Release
-                </a>
-            </div>
-        </section>
-    </main>
-
-    <footer class="footer">
-        <p>Koditra Labs</p>
-        <p>Open source • Nintendo Switch homebrew • Made with love</p>
-    </footer>
-
-    <script src="script.js"></script>
+<footer class="footer">
+<p>Koditra Labs</p>
+<p>Open source • Nintendo Switch homebrew • Made with love</p>
+</footer>
+<script src="script.js"></script>
 </body>
 </html>
