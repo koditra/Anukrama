@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Anukrama — Practice</title>
+    <meta
+        name="description"
+        content="Practice Bhagavad Gita verses with Anukrama."
+    >
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link rel="stylesheet" href="game.css">
+</head>
+
+<body>
+
+    <header class="game-header">
+
+        <a href="index.html" class="back-link">
+            ← Back
+        </a>
+
+        <div class="brand">
+            <span class="brand-sanskrit">अनुक्रम</span>
+            <span class="brand-name">Anukrama</span>
+        </div>
+
+        <div class="progress">
+            <span id="progressText">1 / 20</span>
+        </div>
+
+    </header>
+
+
+    <main class="game-container">
+
+        <section class="game-heading">
+
+            <p class="chapter-label">
+                BHAGAVAD GITA · CHAPTER 15
+            </p>
+
+            <h1>
+                Verse <span id="verseNumber">1</span>
+            </h1>
+
+        </section>
+
+
+        <section class="practice-card">
+
+            <div class="prompt-heading">
+                <span>PROMPT</span>
+
+                <button
+                    id="audioButton"
+                    class="audio-button"
+                    type="button"
+                    aria-label="Play verse audio"
+                >
+                    Play audio
+                </button>
+            </div>
+
+
+            <div class="prompt">
+
+                <div
+                    id="quarterDevanagari"
+                    class="quarter-devanagari"
+                >
+                    Loading...
+                </div>
+
+                <div
+                    id="quarterEnglish"
+                    class="quarter-english"
+                >
+                    Loading...
+                </div>
+
+            </div>
+
+
+            <div class="line"></div>
+
+
+            <div id="answer" class="answer hidden">
+
+                <p class="answer-label">
+                    COMPLETE VERSE
+                </p>
+
+                <div
+                    id="verseDevanagari"
+                    class="verse-devanagari"
+                ></div>
+
+                <div
+                    id="verseEnglish"
+                    class="verse-english"
+                ></div>
+
+            </div>
+
+
+            <div class="main-action">
+
+                <button
+                    id="revealButton"
+                    class="reveal-button"
+                    type="button"
+                >
+                    Reveal verse
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <nav class="controls" aria-label="Verse controls">
+
+            <button
+                id="previousButton"
+                class="control-button"
+                type="button"
+            >
+                ← Previous
+            </button>
+
+            <button
+                id="randomButton"
+                class="control-button"
+                type="button"
+            >
+                Random
+            </button>
+
+            <button
+                id="nextButton"
+                class="control-button"
+                type="button"
+            >
+                Next →
+            </button>
+
+        </nav>
+
+
+        <p class="keyboard-hint">
+            Press <kbd>Space</kbd> to reveal ·
+            <kbd>←</kbd> <kbd>→</kbd> to change verse
+        </p>
+
+    </main>
+
+
+    <footer class="game-footer">
+        <span>Anukrama</span>
+        <span>Chapter 15</span>
+    </footer>
+
+
+    <script src="game.js"></script>
+
+</body>
+</html>
