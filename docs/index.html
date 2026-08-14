@@ -3,132 +3,541 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Anukrama</title>
-  <meta name="description" content="Practice and memorize Bhagavad Gita verses on your Nintendo Switch.">
+
+  <meta
+    name="description"
+    content="Anukrama is a game for practicing and memorizing Bhagavad Gita verses on Nintendo Switch and in the browser."
+  >
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet"
+  >
+
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
+
 <header class="navbar">
-  <a class="logo-left" href="https://hackclub.com" target="_blank" rel="noopener">
-    <img class="hackclub-logo" src="https://assets.hackclub.com/flag-orpheus-top.svg" alt="Hack Club">
+
+  <a
+    class="logo-left"
+    href="https://hackclub.com"
+    target="_blank"
+    rel="noopener"
+  >
+    <img
+      class="hackclub-logo"
+      src="https://assets.hackclub.com/flag-orpheus-top.svg"
+      alt="Hack Club"
+    >
   </a>
 
   <nav>
     <ul class="nav-links">
-      <li><a href="#motive">Motives</a></li>
-      <li><a href="#features">Features</a></li>
+      <li><a href="#about-gita">The Gita</a></li>
+      <li><a href="#motive">Why I Built It</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
       <li><a href="#gameplay">Gameplay</a></li>
+      <li><a href="#features">Features</a></li>
       <li><a href="#roadmap">Roadmap</a></li>
       <li><a href="#download">Download</a></li>
-      <li><a href="https://github.com/koditra/Anukrama" target="_blank" rel="noopener">GitHub</a></li>
+      <li>
+        <a
+          href="https://github.com/koditra/Anukrama"
+          target="_blank"
+          rel="noopener"
+        >
+          GitHub
+        </a>
+      </li>
     </ul>
   </nav>
 
-  <a class="logo-right" href="https://cmsj.org" target="_blank" rel="noopener">
-    <img class="chinmaya-logo" src="https://agffoundation.org/wp-content/uploads/2024/01/Chinmaya-Mission.png" alt="Chinmaya Mission">
+  <a
+    class="logo-right"
+    href="https://cmsj.org"
+    target="_blank"
+    rel="noopener"
+  >
+    <img
+      class="chinmaya-logo"
+      src="https://agffoundation.org/wp-content/uploads/2024/01/Chinmaya-Mission.png"
+      alt="Chinmaya Mission"
+    >
   </a>
+
 </header>
 
-<main>
-<section class="hero">
-<div class="hero-text">
-<p class="sanskrit">अनुक्रम</p>
-<h1>Anukrama</h1>
-<p class="hero-description">Practice and memorize the Bhagavad Gita one verse at a time on your Nintendo Switch.</p>
-<div class="hero-buttons">
-<a class="button primary" href="#download">Download Latest Release</a>
-<a class="button secondary" href="#gameplay">Watch Gameplay</a>
-</div>
-</div>
 
-<div class="hero-gallery">
+<main>
+
+<section class="hero">
+
+  <div class="hero-text">
+
+    <p class="sanskrit">अनुक्रम</p>
+
+    <h1>Anukrama</h1>
+
+    <p class="hero-description">
+      Practice and memorize the Bhagavad Gita one verse at a time
+      on your Nintendo Switch or in your browser.
+    </p>
+
+    <div class="hero-buttons">
+
+      <a
+        class="button primary"
+        href="game.html"
+      >
+        Try Browser Demo
+      </a>
+
+      <a
+        class="button secondary"
+        href="#download"
+      >
+        Download Latest Release
+      </a>
+
+      <a
+        class="button secondary"
+        href="#gameplay"
+      >
+        Watch Gameplay
+      </a>
+
+    </div>
+
+  </div>
+
+
+  <div class="hero-gallery">
 
     <figure class="large-shot">
-        <img src="screenshots/solo-practice-mode.jpg" alt="Solo Practice">
-        <figcaption>Solo Practice</figcaption>
+
+      <img
+        src="screenshots/solo-practice-mode.jpg"
+        alt="Anukrama Solo Practice Mode"
+      >
+
+      <figcaption>Solo Practice</figcaption>
+
     </figure>
 
     <figure>
-        <img src="screenshots/menu.jpg" alt="Main Menu">
-        <figcaption>Main Menu</figcaption>
+
+      <img
+        src="screenshots/menu.jpg"
+        alt="Anukrama Main Menu"
+      >
+
+      <figcaption>Main Menu</figcaption>
+
     </figure>
 
     <figure>
-        <img src="screenshots/vs-mode.jpg" alt="VS Mode">
-        <figcaption>VS Mode</figcaption>
+
+      <img
+        src="screenshots/vs-mode.jpg"
+        alt="Anukrama VS Mode"
+      >
+
+      <figcaption>VS Mode</figcaption>
+
     </figure>
 
-</div>
-<section id="motive" class="section"><div class="container">
-<h2>Motives</h2>
-<p>This started as a project for myself. While practicing Bhagavad Gita verses, I realized there wasn't an easy way to quiz myself without someone else helping. I thought my Nintendo Switch would actually make a fun platform for it, so I built Anukrama. Hopefully it helps other people memorize verses as much as it helps me.</p>
-</div></section>
+  </div>
 
-<section class="section"><div class="container">
-<h2>How It Works</h2>
-<div class="steps">
-<div class="step"><span class="step-number">1</span><h3>Choose a verse</h3><p>Pick the verse you want to practice.</p></div>
-<div class="step"><span class="step-number">2</span><h3>Read the prompt</h3><p>The previous quarter of the verse is shown on screen.</p></div>
-<div class="step"><span class="step-number">3</span><h3>Chant</h3><p>Recite the next quarter from memory.</p></div>
-<div class="step"><span class="step-number">4</span><h3>Move to the next verse!</h3><p>Press A to move to the next prompt!</p></div>
-</div></div></section>
-
-<section id="gameplay" class="section">
-    <div class="container">
-        <h2>Gameplay</h2>
-        <p class="section-text">See how Anukrama is used!</p>
-
-        <div class="video-wrapper">
-            <iframe
-                src="https://www.youtube.com/embed/wv581uYRIbU"
-                title="Anukrama Gameplay"
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerpolicy="strict-origin-when-cross-origin"
-                allowfullscreen>
-            </iframe>
-        </div>
-    </div>
 </section>
 
 
-<section id="features" class="section"><div class="container">
-<h2>Features</h2>
-<div class="features-grid">
-<div class="feature-card"><h3>Guided Verse Practice</h3><p>Practice one verse at a time!</p></div>
-<div class="feature-card"><h3>Sanskrit Audio</h3><p>Listen and perfect pronunciation thanks to Chinmaya Mission's audio recordings.</p></div>
-<div class="feature-card"><h3>English Transliteration</h3><p>Easy-to-read english transliteration included!</p></div>
-<div class="feature-card"><h3>Local VS Mode</h3><p>Challenge a friend! (on the same Switch).</p></div>
-<div class="feature-card"><h3>Includes important verses</h3><p>Includes all 20 verses of Chapter 15!</p></div>
-<div class="feature-card"><h3>Nintendo Switch Homebrew</h3><p>Built natively using C and libnx.</p></div>
-<div class="feature-card"><h3>Open Source</h3><p>Contribute on our GitHub!</p></div>
-<div class="feature-card"><h3>Fast Loading</h3><p>The game is very light-weight and launches instantly.</p></div>
-</div></div></section>
+<section id="about-gita" class="gita-intro">
 
-<section id="roadmap" class="section"><div class="container">
-<h2>Roadmap</h2>
-<div class="roadmap-list">
-<div class="roadmap-item complete"><span>Add basic UI</span></div>
-<div class="roadmap-item complete"><span>Add Chapter 15</span></div>
-<div class="roadmap-item"><span>Add more Gita chapters</span></div>
-<div class="roadmap-item"><span>Add more cool ways to play the game.</span></div>
-<div class="roadmap-item"><span>An AI that is able to grade your recordings.</span></div>
-</div></div></section>
+  <div class="container">
 
-<section id="download" class="section"><div class="container download-box">
-<h2>Download Latest Release</h2>
-<p>Download the newest build of Anukrama for your Nintendo Switch or Emulator.</p>
-<a class="button primary" href="https://github.com/koditra/Anukrama/releases/latest" target="_blank" rel="noopener">Download Latest Release</a>
-</div></section>
+    <p class="sanskrit">भगवद्गीता</p>
+
+    <h2>What is the Bhagavad Gita?</h2>
+
+    <p>
+      The Bhagavad Gita is a 700-verse conversation between Krishna and
+      Arjuna, set on a battlefield just before a great war. Arjuna is
+      struggling with fear, responsibility, and whether he should fight.
+      Krishna responds by teaching him about duty, action, knowledge,
+      devotion, meditation, and the nature of the self.
+    </p>
+
+    <p>
+      For someone familiar with American culture, one useful comparison
+      is the Bible. The Bible is a central collection of sacred writings
+      for Christians, while the Bhagavad Gita is one of the most important
+      sacred texts in Hinduism. Both are studied for spiritual guidance
+      and questions about how to live, but they come from different
+      religious traditions and contain different teachings.
+    </p>
+
+    <div class="gita-comparison">
+
+      <div class="comparison-card">
+
+        <h3>The Bible</h3>
+
+        <p>
+          A collection of sacred writings central to Christianity,
+          containing many different books, genres, teachings, stories,
+          poetry, history, and accounts of Jesus.
+        </p>
+
+      </div>
+
+      <div class="comparison-card">
+
+        <h3>The Bhagavad Gita</h3>
+
+        <p>
+          A dialogue between Krishna and Arjuna that explores duty,
+          action, devotion, knowledge, meditation, and the nature
+          of the self.
+        </p>
+
+      </div>
+
+    </div>
+
+    <p class="gita-note">
+      The comparison is simply meant to give newcomers a familiar
+      reference point. Hinduism and Christianity are distinct
+      religious traditions.
+    </p>
+
+  </div>
+
+</section>
+
+
+<section id="motive" class="section">
+
+  <div class="container">
+
+    <h2>Why I Built Anukrama</h2>
+
+    <p>
+      This started as a project for myself. While practicing Bhagavad Gita
+      verses, I realized there wasn't an easy way to quiz myself without
+      someone else helping.
+    </p>
+
+    <p>
+      I thought my Nintendo Switch would actually make a fun platform
+      for it, so I built Anukrama. Instead of simply reading a verse,
+      the game gives you a prompt and asks you to recall what comes next.
+    </p>
+
+    <p>
+      Hopefully it helps other people memorize verses as much as it
+      helps me.
+    </p>
+
+  </div>
+
+</section>
+
+
+<section id="how-it-works" class="section">
+
+  <div class="container">
+
+    <h2>How It Works</h2>
+
+    <p class="section-text">
+      Anukrama turns verse memorization into a simple practice game.
+    </p>
+
+    <div class="steps">
+
+      <div class="step">
+
+        <span class="step-number">1</span>
+
+        <h3>Choose a verse</h3>
+
+        <p>
+          Pick the verse you want to practice.
+        </p>
+
+      </div>
+
+      <div class="step">
+
+        <span class="step-number">2</span>
+
+        <h3>Read the prompt</h3>
+
+        <p>
+          The previous quarter of the verse is shown on screen.
+        </p>
+
+      </div>
+
+      <div class="step">
+
+        <span class="step-number">3</span>
+
+        <h3>Chant</h3>
+
+        <p>
+          Recite the next part of the verse from memory.
+        </p>
+
+      </div>
+
+      <div class="step">
+
+        <span class="step-number">4</span>
+
+        <h3>Check your answer</h3>
+
+        <p>
+          Reveal the verse and see whether you remembered it correctly.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="gameplay" class="section">
+
+  <div class="container">
+
+    <h2>Gameplay</h2>
+
+    <p class="section-text">
+      See Anukrama in action.
+    </p>
+
+    <div class="video-wrapper">
+
+      <iframe
+        src="https://www.youtube.com/embed/wv581uYRIbU"
+        title="Anukrama Gameplay"
+        loading="lazy"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin"
+        allowfullscreen>
+      </iframe>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="features" class="section">
+
+  <div class="container">
+
+    <h2>Features</h2>
+
+    <div class="features-grid">
+
+      <div class="feature-card">
+
+        <h3>Guided Verse Practice</h3>
+
+        <p>
+          Practice one verse at a time instead of trying to memorize
+          an entire chapter at once.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Sanskrit Audio</h3>
+
+        <p>
+          Listen to Sanskrit audio recordings while practicing
+          pronunciation and memorization.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>English Transliteration</h3>
+
+        <p>
+          Practice Sanskrit verses using easy-to-read English
+          transliteration.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Local VS Mode</h3>
+
+        <p>
+          Challenge a friend in a pass-and-play mode on the same
+          Nintendo Switch.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Chapter 15</h3>
+
+        <p>
+          The current release includes all 20 verses of Bhagavad
+          Gita Chapter 15.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Nintendo Switch Homebrew</h3>
+
+        <p>
+          Built natively for Nintendo Switch using C and libnx.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Browser Version</h3>
+
+        <p>
+          Try the practice experience directly in your browser
+          without a Nintendo Switch.
+        </p>
+
+      </div>
+
+      <div class="feature-card">
+
+        <h3>Open Source</h3>
+
+        <p>
+          The source code is publicly available and open to
+          contributions.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="roadmap" class="section">
+
+  <div class="container">
+
+    <h2>Roadmap</h2>
+
+    <p class="section-text">
+      Anukrama is still being developed.
+    </p>
+
+    <div class="roadmap-list">
+
+      <div class="roadmap-item complete">
+        <span>Add basic UI</span>
+      </div>
+
+      <div class="roadmap-item complete">
+        <span>Add Chapter 15</span>
+      </div>
+
+      <div class="roadmap-item">
+        <span>Add more Gita chapters</span>
+      </div>
+
+      <div class="roadmap-item">
+        <span>Add more ways to play</span>
+      </div>
+
+      <div class="roadmap-item">
+        <span>
+          Add AI-assisted grading for recorded chanting
+        </span>
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="download" class="section">
+
+  <div class="container download-box">
+
+    <h2>Download Anukrama</h2>
+
+    <p>
+      Download the latest build of Anukrama for your Nintendo Switch
+      or emulator.
+    </p>
+
+    <div class="hero-buttons">
+
+      <a
+        class="button primary"
+        href="https://github.com/koditra/Anukrama/releases/latest"
+        target="_blank"
+        rel="noopener"
+      >
+        Download Latest Release
+      </a>
+
+      <a
+        class="button secondary"
+        href="game.html"
+      >
+        Try Browser Demo
+      </a>
+
+    </div>
+
+  </div>
+
+</section>
+
 </main>
 
+
 <footer class="footer">
-<p>Koditra Labs</p>
-<p>Open source • Nintendo Switch homebrew • Made with love</p>
+
+  <p>Koditra Labs</p>
+
+  <p>
+    Open source • Nintendo Switch homebrew • Made with love
+  </p>
+
 </footer>
+
 <script src="script.js"></script>
+
 </body>
 </html>
