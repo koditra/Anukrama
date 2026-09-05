@@ -2,6 +2,7 @@ const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
+
 const AI_BASE = `${BASE_URL}/ai`;
 
 const MODEL_URLS = {
@@ -21,7 +22,7 @@ const REFERENCE_URLS = {
 
 let currentVerse = 1;
 let currentAudio = null;
-let ort = null;
+let onnxRuntime = null;
 
 const models = {
     v01: null,
@@ -66,31 +67,75 @@ const scoreValue = document.getElementById("scoreValue");
 const scoreMessage = document.getElementById("scoreMessage");
 
 async function loadONNXRuntime() {
-    if (ort) {
-        return ort;
+    if (onnxRuntime) {
+        return onnxRuntime;
+    }
+
+    if (window.ort) {
+        onnxRuntime = window.ort;
+        onnxRuntime.env.wasm.wasmPaths =
+            "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+        return onnxRuntime;
     }
 
     if (aiStatus) {
         aiStatus.textContent = "Loading pronunciation AI...";
     }
 
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js";
+    const existingScript = document.querySelector(
+        'script[src*="onnxruntime-web"]'
+    );
 
-    document.head.appendChild(script);
+    if (existingScript) {
+        await new Promise((resolve, reject) => {
+            if (window.ort) {
+                resolve();
+                return;
+            }
 
-    await new Promise((resolve, reject) => {
-        script.onload = resolve;
-        script.onerror = () => reject(
-            new Error("Failed to load ONNX Runtime Web.")
+            existingScript.addEventListener("load", resolve, {
+                once: true
+            });
+
+            existingScript.addEventListener("error", () => {
+                reject(
+                    new Error("Failed to load ONNX Runtime Web.")
+                );
+            }, {
+                once: true
+            });
+        });
+    } else {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+
+            script.src =
+                "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js";
+
+            script.onload = resolve;
+
+            script.onerror = () => {
+                reject(
+                    new Error("Failed to load ONNX Runtime Web.")
+                );
+            };
+
+            document.head.appendChild(script);
+        });
+    }
+
+    if (!window.ort) {
+        throw new Error(
+            "ONNX Runtime Web loaded but window.ort is unavailable."
         );
-    });
+    }
 
-    ort = window.ort;
-    ort.env.wasm.wasmPaths =
+    onnxRuntime = window.ort;
+
+    onnxRuntime.env.wasm.wasmPaths =
         "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
 
-    return ort;
+    return onnxRuntime;
 }
 
 async function fetchText(path) {
@@ -129,18 +174,24 @@ function createWav(buffer) {
     const bitsPerSample = 16;
     const blockAlign = channels * bitsPerSample / 8;
     const byteRate = SAMPLE_RATE * blockAlign;
-
     const wav = new ArrayBuffer(44 + pcm.length * 2);
     const view = new DataView(wav);
 
     function writeString(offset, value) {
         for (let i = 0; i < value.length; i++) {
-            view.setUint8(offset + i, value.charCodeAt(i));
+            view.setUint8(
+                offset + i,
+                value.charCodeAt(i)
+            );
         }
     }
 
     writeString(0, "RIFF");
-    view.setUint32(4, 36 + pcm.length * 2, true);
+    view.setUint32(
+        4,
+        36 + pcm.length * 2,
+        true
+    );
     writeString(8, "WAVE");
     writeString(12, "fmt ");
     view.setUint32(16, 16, true);
@@ -151,13 +202,24 @@ function createWav(buffer) {
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitsPerSample, true);
     writeString(36, "data");
-    view.setUint32(40, pcm.length * 2, true);
+    view.setUint32(
+        40,
+        pcm.length * 2,
+        true
+    );
 
     for (let i = 0; i < pcm.length; i++) {
-        view.setInt16(44 + i * 2, pcm[i], true);
+        view.setInt16(
+            44 + i * 2,
+            pcm[i],
+            true
+        );
     }
 
-    return new Blob([wav], { type: "audio/wav" });
+    return new Blob(
+        [wav],
+        { type: "audio/wav" }
+    );
 }
 
 async function stopCurrentAudio() {
@@ -204,13 +266,19 @@ async function playPcm(path) {
     try {
         await stopCurrentAudio();
 
-        const response = await fetch(`${BASE_URL}/${path}`);
+        const response = await fetch(
+            `${BASE_URL}/${path}`
+        );
 
         if (!response.ok) {
-            throw new Error(`Audio not found: ${path}`);
+            throw new Error(
+                `Audio not found: ${path}`
+            );
         }
 
-        const buffer = await response.arrayBuffer();
+        const buffer =
+            await response.arrayBuffer();
+
         const wav = createWav(buffer);
         const url = URL.createObjectURL(wav);
         const audio = new Audio(url);
@@ -218,21 +286,27 @@ async function playPcm(path) {
         currentAudio = audio;
         audio.volume = 1;
 
-        audio.addEventListener("ended", () => {
-            URL.revokeObjectURL(url);
+        audio.addEventListener(
+            "ended",
+            () => {
+                URL.revokeObjectURL(url);
 
-            if (currentAudio === audio) {
-                currentAudio = null;
+                if (currentAudio === audio) {
+                    currentAudio = null;
+                }
             }
-        });
+        );
 
-        audio.addEventListener("error", () => {
-            URL.revokeObjectURL(url);
+        audio.addEventListener(
+            "error",
+            () => {
+                URL.revokeObjectURL(url);
 
-            if (currentAudio === audio) {
-                currentAudio = null;
+                if (currentAudio === audio) {
+                    currentAudio = null;
+                }
             }
-        });
+        );
 
         await audio.play();
 
@@ -249,7 +323,8 @@ async function loadVerse(id) {
     currentVerse = id;
 
     verseNumber.textContent = id;
-    progressText.textContent = `${id} / ${TOTAL_VERSES}`;
+    progressText.textContent =
+        `${id} / ${TOTAL_VERSES}`;
 
     quarterDevanagari.textContent = "Loading...";
     quarterEnglish.textContent = "Loading...";
@@ -257,12 +332,14 @@ async function loadVerse(id) {
     verseEnglish.textContent = "";
 
     answer.classList.add("hidden");
+
     revealButton.textContent = "Reveal verse";
 
     audioButton.disabled = true;
     audioButton.textContent = "Loading...";
 
-    const card = document.querySelector(".practice-card");
+    const card =
+        document.querySelector(".practice-card");
 
     if (card) {
         card.classList.remove("verse-enter");
@@ -271,28 +348,43 @@ async function loadVerse(id) {
     }
 
     try {
-        const meta = await fetchJson(`meta/verse_${id}.json`);
-        const devanagari = await fetchText(
-            `verses/devanagari/verse_${id}.txt`
-        );
-        const english = await fetchText(
-            `verses/english/verse_${id}.txt`
-        );
+        const meta =
+            await fetchJson(
+                `meta/verse_${id}.json`
+            );
+
+        const devanagari =
+            await fetchText(
+                `verses/devanagari/verse_${id}.txt`
+            );
+
+        const english =
+            await fetchText(
+                `verses/english/verse_${id}.txt`
+            );
 
         if (currentVerse !== id) {
             return;
         }
 
-        quarterDevanagari.textContent = meta.quarter.devanagari;
-        quarterEnglish.textContent = meta.quarter.english;
-        verseDevanagari.textContent = devanagari.trim();
-        verseEnglish.textContent = english.trim();
+        quarterDevanagari.textContent =
+            meta.quarter.devanagari;
+
+        quarterEnglish.textContent =
+            meta.quarter.english;
+
+        verseDevanagari.textContent =
+            devanagari.trim();
+
+        verseEnglish.textContent =
+            english.trim();
 
         audioButton.disabled = false;
         audioButton.textContent = "Play verse";
 
         if (id !== 1) {
-            const audioNumber = String(id).padStart(2, "0");
+            const audioNumber =
+                String(id).padStart(2, "0");
 
             await playPcm(
                 `audio/chapter_15/v${audioNumber}_prompt.pcm`
@@ -303,7 +395,9 @@ async function loadVerse(id) {
     } catch (error) {
         console.error(error);
 
-        quarterDevanagari.textContent = "Unable to load verse";
+        quarterDevanagari.textContent =
+            "Unable to load verse";
+
         quarterEnglish.textContent =
             "Something went wrong while loading this verse.";
 
@@ -311,7 +405,8 @@ async function loadVerse(id) {
         verseEnglish.textContent = "";
 
         audioButton.disabled = true;
-        audioButton.textContent = "Audio unavailable";
+        audioButton.textContent =
+            "Audio unavailable";
     }
 }
 
@@ -319,14 +414,17 @@ function revealVerse() {
     answer.classList.toggle("hidden");
 
     if (answer.classList.contains("hidden")) {
-        revealButton.textContent = "Reveal verse";
+        revealButton.textContent =
+            "Reveal verse";
     } else {
-        revealButton.textContent = "Hide verse";
+        revealButton.textContent =
+            "Hide verse";
     }
 }
 
 async function playVerseAudio() {
-    const audioNumber = String(currentVerse).padStart(2, "0");
+    const audioNumber =
+        String(currentVerse).padStart(2, "0");
 
     audioButton.disabled = true;
     audioButton.textContent = "Playing...";
@@ -337,9 +435,10 @@ async function playVerseAudio() {
 
     audioButton.disabled = false;
 
-    audioButton.textContent = success
-        ? "Play verse"
-        : "Audio unavailable";
+    audioButton.textContent =
+        success
+            ? "Play verse"
+            : "Audio unavailable";
 }
 
 async function nextVerse() {
@@ -367,21 +466,29 @@ async function randomVerse() {
 
     do {
         random =
-            Math.floor(Math.random() * TOTAL_VERSES) + 1;
+            Math.floor(
+                Math.random() * TOTAL_VERSES
+            ) + 1;
     } while (random === currentVerse);
 
     await loadVerse(random);
 }
 
 async function loadAIModel(key) {
-    const runtime = await loadONNXRuntime();
+    const runtime =
+        await loadONNXRuntime();
 
-    models[key] = await runtime.InferenceSession.create(
-        MODEL_URLS[key],
-        {
-            executionProviders: ["wasm"]
-        }
-    );
+    if (models[key]) {
+        return models[key];
+    }
+
+    models[key] =
+        await runtime.InferenceSession.create(
+            MODEL_URLS[key],
+            {
+                executionProviders: ["wasm"]
+            }
+        );
 
     return models[key];
 }
@@ -407,7 +514,10 @@ function parseNPY(buffer) {
     let headerOffset;
 
     if (major === 1) {
-        headerLength = bytes[8] | (bytes[9] << 8);
+        headerLength =
+            bytes[8] |
+            (bytes[9] << 8);
+
         headerOffset = 10;
     } else {
         headerLength =
@@ -419,23 +529,31 @@ function parseNPY(buffer) {
         headerOffset = 12;
     }
 
-    const headerBytes = bytes.slice(
-        headerOffset,
-        headerOffset + headerLength
-    );
+    const headerBytes =
+        bytes.slice(
+            headerOffset,
+            headerOffset + headerLength
+        );
 
-    const header = new TextDecoder().decode(headerBytes);
+    const header =
+        new TextDecoder().decode(
+            headerBytes
+        );
 
-    const descrMatch = header.match(
-        /['"]descr['"]\s*:\s*['"]([^'"]+)['"]/
-    );
+    const descrMatch =
+        header.match(
+            /['"]descr['"]\s*:\s*['"]([^'"]+)['"]/
+        );
 
-    const shapeMatch = header.match(
-        /['"]shape['"]\s*:\s*\(([^)]*)\)/
-    );
+    const shapeMatch =
+        header.match(
+            /['"]shape['"]\s*:\s*\(([^)]*)\)/
+        );
 
     if (!descrMatch) {
-        throw new Error("NPY descriptor missing.");
+        throw new Error(
+            "NPY descriptor missing."
+        );
     }
 
     const descr = descrMatch[1];
@@ -448,16 +566,25 @@ function parseNPY(buffer) {
             .map(Number)
         : [];
 
-    const dataOffset = headerOffset + headerLength;
+    const dataOffset =
+        headerOffset + headerLength;
 
     let TypedArray;
 
-    if (descr === "<f4" || descr === "|f4") {
+    if (
+        descr === "<f4" ||
+        descr === "|f4"
+    ) {
         TypedArray = Float32Array;
-    } else if (descr === "<f8" || descr === "|f8") {
+    } else if (
+        descr === "<f8" ||
+        descr === "|f8"
+    ) {
         TypedArray = Float64Array;
     } else {
-        throw new Error(`Unsupported NPY dtype: ${descr}`);
+        throw new Error(
+            `Unsupported NPY dtype: ${descr}`
+        );
     }
 
     const byteLength =
@@ -465,14 +592,16 @@ function parseNPY(buffer) {
 
     const count =
         Math.floor(
-            byteLength / TypedArray.BYTES_PER_ELEMENT
+            byteLength /
+            TypedArray.BYTES_PER_ELEMENT
         );
 
-    const values = new TypedArray(
-        bytes.buffer,
-        bytes.byteOffset + dataOffset,
-        count
-    );
+    const values =
+        new TypedArray(
+            bytes.buffer,
+            bytes.byteOffset + dataOffset,
+            count
+        );
 
     return {
         data: Array.from(values),
@@ -488,37 +617,47 @@ async function loadZipEntries(buffer) {
     let offset = 0;
 
     while (offset + 4 <= bytes.length) {
-        const signature = view.getUint32(offset, true);
+        const signature =
+            view.getUint32(
+                offset,
+                true
+            );
 
         if (signature === 0x04034b50) {
-            const compression = view.getUint16(
-                offset + 8,
-                true
-            );
+            const compression =
+                view.getUint16(
+                    offset + 8,
+                    true
+                );
 
-            const compressedSize = view.getUint32(
-                offset + 18,
-                true
-            );
+            const compressedSize =
+                view.getUint32(
+                    offset + 18,
+                    true
+                );
 
-            const fileNameLength = view.getUint16(
-                offset + 26,
-                true
-            );
+            const fileNameLength =
+                view.getUint16(
+                    offset + 26,
+                    true
+                );
 
-            const extraLength = view.getUint16(
-                offset + 28,
-                true
-            );
+            const extraLength =
+                view.getUint16(
+                    offset + 28,
+                    true
+                );
 
-            const nameStart = offset + 30;
+            const nameStart =
+                offset + 30;
 
-            const name = new TextDecoder().decode(
-                bytes.slice(
-                    nameStart,
-                    nameStart + fileNameLength
-                )
-            );
+            const name =
+                new TextDecoder().decode(
+                    bytes.slice(
+                        nameStart,
+                        nameStart + fileNameLength
+                    )
+                );
 
             const dataStart =
                 nameStart +
@@ -529,30 +668,41 @@ async function loadZipEntries(buffer) {
                 dataStart +
                 compressedSize;
 
-            const compressed = bytes.slice(
-                dataStart,
-                dataEnd
-            );
+            const compressed =
+                bytes.slice(
+                    dataStart,
+                    dataEnd
+                );
 
             if (compression === 0) {
-                entries[name] = compressed.buffer.slice(
-                    compressed.byteOffset,
-                    compressed.byteOffset + compressed.byteLength
-                );
+                entries[name] =
+                    compressed.buffer.slice(
+                        compressed.byteOffset,
+                        compressed.byteOffset +
+                            compressed.byteLength
+                    );
             } else if (compression === 8) {
-                if (!("DecompressionStream" in window)) {
+                if (
+                    !("DecompressionStream" in window)
+                ) {
                     throw new Error(
                         "This browser does not support ZIP decompression."
                     );
                 }
 
                 const stream =
-                    new Blob([compressed]).stream().pipeThrough(
-                        new DecompressionStream("deflate-raw")
-                    );
+                    new Blob([compressed])
+                        .stream()
+                        .pipeThrough(
+                            new DecompressionStream(
+                                "deflate-raw"
+                            )
+                        );
 
                 entries[name] =
-                    await new Response(stream).arrayBuffer();
+                    await new Response(
+                        stream
+                    ).arrayBuffer();
             } else {
                 throw new Error(
                     `Unsupported ZIP compression: ${compression}`
@@ -574,25 +724,30 @@ async function loadZipEntries(buffer) {
 }
 
 async function loadScaler(key) {
-    const buffer = await fetchBinary(
-        SCALER_URLS[key]
-    );
+    const buffer =
+        await fetchBinary(
+            SCALER_URLS[key]
+        );
 
-    const entries = await loadZipEntries(buffer);
+    const entries =
+        await loadZipEntries(buffer);
 
-    const names = Object.keys(entries);
+    const names =
+        Object.keys(entries);
 
-    const meanName = names.find(
-        name =>
-            name.endsWith("mean.npy") ||
-            name.endsWith("mean_.npy")
-    );
+    const meanName =
+        names.find(
+            name =>
+                name.endsWith("mean.npy") ||
+                name.endsWith("mean_.npy")
+        );
 
-    const scaleName = names.find(
-        name =>
-            name.endsWith("scale.npy") ||
-            name.endsWith("scale_.npy")
-    );
+    const scaleName =
+        names.find(
+            name =>
+                name.endsWith("scale.npy") ||
+                name.endsWith("scale_.npy")
+        );
 
     if (!meanName || !scaleName) {
         throw new Error(
@@ -600,8 +755,15 @@ async function loadScaler(key) {
         );
     }
 
-    const mean = parseNPY(entries[meanName]).data;
-    const std = parseNPY(entries[scaleName]).data;
+    const mean =
+        parseNPY(
+            entries[meanName]
+        ).data;
+
+    const std =
+        parseNPY(
+            entries[scaleName]
+        ).data;
 
     scalers[key] = {
         mean,
@@ -612,9 +774,10 @@ async function loadScaler(key) {
 }
 
 async function loadReference(key) {
-    const buffer = await fetchBinary(
-        REFERENCE_URLS[key]
-    );
+    const buffer =
+        await fetchBinary(
+            REFERENCE_URLS[key]
+        );
 
     if (buffer.byteLength % 2 !== 0) {
         throw new Error(
@@ -622,14 +785,17 @@ async function loadReference(key) {
         );
     }
 
-    const pcm = new Int16Array(buffer);
+    const pcm =
+        new Int16Array(buffer);
 
-    const samples = new Float32Array(
-        pcm.length
-    );
+    const samples =
+        new Float32Array(
+            pcm.length
+        );
 
     for (let i = 0; i < pcm.length; i++) {
-        samples[i] = pcm[i] / 32768;
+        samples[i] =
+            pcm[i] / 32768;
     }
 
     references[key] = {
@@ -641,11 +807,18 @@ async function loadReference(key) {
 }
 
 function updateAIForVerse() {
-    if (!aiStatus || !recordButton || !scoreButton) {
+    if (
+        !aiStatus ||
+        !recordButton ||
+        !scoreButton
+    ) {
         return;
     }
 
-    if (currentVerse !== 1 && currentVerse !== 2) {
+    if (
+        currentVerse !== 1 &&
+        currentVerse !== 2
+    ) {
         aiStatus.textContent =
             "Pronunciation scoring is currently available for Verses 1 and 2.";
 
@@ -685,26 +858,38 @@ function resampleAudio(
         return new Float32Array(samples);
     }
 
-    const ratio = sourceRate / targetRate;
+    const ratio =
+        sourceRate / targetRate;
 
-    const outputLength = Math.floor(
-        samples.length / ratio
-    );
-
-    const output = new Float32Array(
-        outputLength
-    );
-
-    for (let i = 0; i < outputLength; i++) {
-        const position = i * ratio;
-        const left = Math.floor(position);
-
-        const right = Math.min(
-            left + 1,
-            samples.length - 1
+    const outputLength =
+        Math.floor(
+            samples.length / ratio
         );
 
-        const amount = position - left;
+    const output =
+        new Float32Array(
+            outputLength
+        );
+
+    for (
+        let i = 0;
+        i < outputLength;
+        i++
+    ) {
+        const position =
+            i * ratio;
+
+        const left =
+            Math.floor(position);
+
+        const right =
+            Math.min(
+                left + 1,
+                samples.length - 1
+            );
+
+        const amount =
+            position - left;
 
         output[i] =
             samples[left] * (1 - amount) +
@@ -716,13 +901,17 @@ function resampleAudio(
 
 async function decodeRecordedAudio(blob) {
     if (!audioContext) {
-        audioContext = new AudioContext();
+        audioContext =
+            new AudioContext();
     }
 
-    const buffer = await blob.arrayBuffer();
+    const buffer =
+        await blob.arrayBuffer();
 
     const decoded =
-        await audioContext.decodeAudioData(buffer);
+        await audioContext.decodeAudioData(
+            buffer
+        );
 
     const channel =
         decoded.getChannelData(0);
@@ -767,13 +956,17 @@ async function startRecording() {
         recordingChunks = [];
 
         mediaRecorder =
-            new MediaRecorder(mediaStream);
+            new MediaRecorder(
+                mediaStream
+            );
 
         mediaRecorder.addEventListener(
             "dataavailable",
             event => {
                 if (event.data.size > 0) {
-                    recordingChunks.push(event.data);
+                    recordingChunks.push(
+                        event.data
+                    );
                 }
             }
         );
@@ -794,7 +987,9 @@ async function startRecording() {
 
                 mediaStream
                     .getTracks()
-                    .forEach(track => track.stop());
+                    .forEach(
+                        track => track.stop()
+                    );
 
                 mediaStream = null;
                 isRecording = false;
@@ -814,10 +1009,12 @@ async function startRecording() {
                         );
 
                     recordedAudio = decoded;
+
                     recordedSampleRate =
                         decoded.sampleRate;
 
-                    scoreButton.disabled = false;
+                    scoreButton.disabled =
+                        false;
 
                     aiStatus.textContent =
                         "Recording ready to score.";
@@ -864,10 +1061,11 @@ function normalizeAudio(samples) {
     let peak = 0;
 
     for (let i = 0; i < samples.length; i++) {
-        peak = Math.max(
-            peak,
-            Math.abs(samples[i])
-        );
+        peak =
+            Math.max(
+                peak,
+                Math.abs(samples[i])
+            );
     }
 
     if (peak === 0) {
@@ -875,7 +1073,9 @@ function normalizeAudio(samples) {
     }
 
     const output =
-        new Float32Array(samples.length);
+        new Float32Array(
+            samples.length
+        );
 
     for (let i = 0; i < samples.length; i++) {
         output[i] =
@@ -889,20 +1089,23 @@ function removeSilence(samples) {
     let peak = 0;
 
     for (let i = 0; i < samples.length; i++) {
-        peak = Math.max(
-            peak,
-            Math.abs(samples[i])
-        );
+        peak =
+            Math.max(
+                peak,
+                Math.abs(samples[i])
+            );
     }
 
     if (peak < 0.0001) {
         return new Float32Array(samples);
     }
 
-    const threshold = peak * 0.03;
+    const threshold =
+        peak * 0.03;
 
     let start = 0;
-    let end = samples.length - 1;
+    let end =
+        samples.length - 1;
 
     while (
         start < samples.length &&
@@ -932,7 +1135,9 @@ function calculateRMS(samples) {
     let sum = 0;
 
     for (let i = 0; i < samples.length; i++) {
-        sum += samples[i] * samples[i];
+        sum +=
+            samples[i] *
+            samples[i];
     }
 
     return Math.sqrt(
@@ -959,7 +1164,8 @@ function standardDeviation(values) {
         return 0;
     }
 
-    const average = mean(values);
+    const average =
+        mean(values);
 
     let sum = 0;
 
@@ -968,7 +1174,8 @@ function standardDeviation(values) {
             value - average;
 
         sum +=
-            difference * difference;
+            difference *
+            difference;
     }
 
     return Math.sqrt(
@@ -993,7 +1200,9 @@ function statistics(values) {
         );
 
     const middle =
-        Math.floor(sorted.length / 2);
+        Math.floor(
+            sorted.length / 2
+        );
 
     const median =
         sorted.length % 2 === 0
@@ -1007,7 +1216,8 @@ function statistics(values) {
         mean: mean(values),
         std: standardDeviation(values),
         min: sorted[0],
-        max: sorted[sorted.length - 1],
+        max:
+            sorted[sorted.length - 1],
         median
     };
 }
@@ -1085,7 +1295,8 @@ function extractBasicFeatures(samples) {
             const value =
                 normalized[start + i];
 
-            sum += value * value;
+            sum +=
+                value * value;
         }
 
         values.push(
@@ -1097,10 +1308,15 @@ function extractBasicFeatures(samples) {
 
     return {
         duration:
-            normalized.length / SAMPLE_RATE,
+            normalized.length /
+            SAMPLE_RATE,
+
         rms,
+
         frameValues: values,
-        statistics: statistics(values)
+
+        statistics:
+            statistics(values)
     };
 }
 
@@ -1109,10 +1325,14 @@ function buildFeatureVector(
     reference
 ) {
     const recordingFeatures =
-        extractBasicFeatures(recording);
+        extractBasicFeatures(
+            recording
+        );
 
     const referenceFeatures =
-        extractBasicFeatures(reference);
+        extractBasicFeatures(
+            reference
+        );
 
     const recordingStats =
         recordingFeatures.statistics;
@@ -1178,9 +1398,9 @@ function scaleFeatures(
 
     if (
         scaler.mean.length !==
-        features.length ||
+            features.length ||
         scaler.std.length !==
-        features.length
+            features.length
     ) {
         throw new Error(
             `Scaler expects ${scaler.mean.length} features, received ${features.length}.`
@@ -1197,7 +1417,8 @@ function scaleFeatures(
         i < features.length;
         i++
     ) {
-        const std = scaler.std[i];
+        const std =
+            scaler.std[i];
 
         output[i] =
             Math.abs(std) < 1e-12
@@ -1215,7 +1436,8 @@ async function runONNX(
     key,
     features
 ) {
-    const session = models[key];
+    const session =
+        models[key];
 
     if (!session) {
         throw new Error(
@@ -1223,11 +1445,14 @@ async function runONNX(
         );
     }
 
+    const runtime =
+        await loadONNXRuntime();
+
     const inputName =
         session.inputNames[0];
 
     const input =
-        new ort.Tensor(
+        new runtime.Tensor(
             "float32",
             features,
             [1, features.length]
@@ -1255,7 +1480,10 @@ function convertPredictionToScore(output) {
         return 0;
     }
 
-    if (value >= 0 && value <= 1) {
+    if (
+        value >= 0 &&
+        value <= 1
+    ) {
         value *= 100;
     }
 
@@ -1270,11 +1498,14 @@ function convertPredictionToScore(output) {
 
 function displayScore(score) {
     if (aiResult) {
-        aiResult.classList.remove("hidden");
+        aiResult.classList.remove(
+            "hidden"
+        );
     }
 
     if (scoreValue) {
-        scoreValue.textContent = score;
+        scoreValue.textContent =
+            score;
     }
 
     if (scoreMessage) {
@@ -1295,7 +1526,10 @@ function displayScore(score) {
 }
 
 async function initializeAI() {
-    if (!recordButton || !aiStatus) {
+    if (
+        !recordButton ||
+        !aiStatus
+    ) {
         return;
     }
 
@@ -1304,6 +1538,9 @@ async function initializeAI() {
             "Loading browser AI...";
 
         await loadONNXRuntime();
+
+        aiStatus.textContent =
+            "Loading pronunciation models...";
 
         await Promise.all([
             loadAIModel("v01"),
@@ -1498,7 +1735,9 @@ document.addEventListener(
             revealVerse();
         }
 
-        if (event.key.toLowerCase() === "r") {
+        if (
+            event.key.toLowerCase() === "r"
+        ) {
             randomVerse();
         }
     }
