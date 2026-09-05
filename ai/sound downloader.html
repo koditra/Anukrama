@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anukrama Recording Gatherer</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f7;color:#171717;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{background:#fff;border-bottom:1px solid #ddd;padding:24px;position:sticky;top:0;z-index:5}header h1{margin:0 0 5px;font-size:28px}header p{margin:0;color:#666}.app{max-width:1100px;margin:auto;padding:22px}.panel{background:#fff;border:1px solid #ddd;border-radius:18px;padding:20px;margin-bottom:18px}button{border:0;border-radius:11px;padding:11px 16px;font-weight:600;cursor:pointer;background:#171717;color:white}button:disabled{opacity:.4;cursor:not-allowed}.secondary{background:#e9e9ed;color:#171717}.danger{background:#c62828}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.verse-nav{display:grid;grid-template-columns:repeat(10,1fr);gap:7px;margin-top:15px}.verse-nav button{background:#eee;color:#222;padding:9px}.verse-nav button.active{background:#171717;color:#fff}.verse-nav button.done{outline:3px solid #65a66a}.verse-number{color:#777;margin-bottom:8px}.sanskrit{font-family:"Noto Sans Devanagari","Nirmala UI",sans-serif;text-align:center;font-size:30px;line-height:1.9;padding:18px 5px}.timer{text-align:center;font-size:42px;font-weight:700;font-variant-numeric:tabular-nums;margin:12px}.controls{text-align:center;display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.status{text-align:center;color:#666;min-height:24px;margin:8px}progress{width:100%;height:15px}.samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:16px}.sample{border:1px solid #ddd;border-radius:13px;padding:13px}.sample strong{display:block;margin-bottom:8px}.sample audio{width:100%;margin:7px 0}.sample button{width:100%;margin-top:5px}.note{font-size:13px;color:#666;line-height:1.5}@media(max-width:700px){.app{padding:12px}.verse-nav{grid-template-columns:repeat(5,1fr)}.sanskrit{font-size:23px}}
+</style>
+</head>
+<body>
+<header><h1>Anukrama Recording Gatherer</h1><p>Bhagavad Gita Chapter 15 · 7 recordings per verse · 48 kHz mono PCM</p></header>
+<main class="app">
+<section class="panel">
+<div class="top"><div><b>Progress</b><div id="progressText">0 / 140 recordings</div></div><div><button class="secondary" id="prev">Previous</button> <button class="secondary" id="next">Next</button></div></div>
+<progress id="progress" max="140" value="0"></progress><div class="verse-nav" id="verseNav"></div>
+</section>
+<section class="panel">
+<div class="verse-number" id="verseNumber"></div><div class="sanskrit" id="verseText"></div><div class="status" id="status">Ready</div><div class="timer" id="timer">00:00.0</div>
+<div class="controls"><button id="record">Record</button><button class="danger" id="stop" disabled>Stop</button><button class="secondary" id="clear">Clear current verse</button></div>
+</section>
+<section class="panel">
+<div class="top"><div><b>Recordings for this verse</b><div class="note">Make up to 7 takes. The PCM files are signed 16-bit little-endian, 48,000 Hz, mono.</div></div><button class="secondary" id="downloadAll">Download all PCMs</button></div>
+<div class="samples" id="samples"></div>
+</section>
+<section class="panel"><b>Instructions</b><p class="note">Choose a verse, press Record, chant the displayed Sanskrit, then press Stop. The browser converts the recording to 48 kHz mono PCM. You can listen to every take and download individual PCM files. Recordings remain in memory while this page is open.</p></section>
+</main>
+<script>
+const verses=[
+`श्रीभगवानुवाच ।<br>ऊर्ध्वमूलमधःशाखमश्वत्थं प्राहुरव्ययम् ।<br>छन्दांसि यस्य पर्णानि यस्तं वेद स वेदवित् ॥१॥`,
+`अधश्चोर्ध्वं प्रसृतास्तस्य शाखा गुणप्रवृद्धा विषयप्रवालाः ।<br>अधश्च मूलान्यनुसन्ततानि कर्मानुबन्धीनि मनुष्यलोके ॥२॥`,
+`न रूपमस्येह तथोपलभ्यते नान्तो न चादिर्न च सम्प्रतिष्ठा ।<br>अश्वत्थमेनं सुविरूढमूलमसङ्गशस्त्रेण दृढेन छित्त्वा ॥३॥`,
+`ततः पदं तत्परिमार्गितव्यं यस्मिन् गता न निवर्तन्ति भूयः ।<br>तमेव चाद्यं पुरुषं प्रपद्ये यतः प्रवृत्तिः प्रसृता पुराणी ॥४॥`,
+`निर्मानमोहा जितसङ्गदोषा अध्यात्मनित्या विनिवृत्तकामाः ।<br>द्वन्द्वैर्विमुक्ताः सुखदुःखसञ्ज्ञैर् गच्छन्त्यमूढाः पदमव्ययं तत् ॥५॥`,
+`न तद्भासयते सूर्यो न शशाङ्को न पावकः ।<br>यद्गत्वा न निवर्तन्ते तद्धाम परमं मम ॥६॥`,
+`ममैवांशो जीवलोके जीवभूतः सनातनः ।<br>मनःषष्ठानीन्द्रियाणि प्रकृतिस्थानि कर्षति ॥७॥`,
+`शरीरं यदवाप्नोति यच्चाप्युत्क्रामतीश्वरः ।<br>गृहीत्वैतानि संयाति वायुर्गन्धानिवाशयात् ॥८॥`,
+`श्रोत्रं चक्षुः स्पर्शनं च रसनं घ्राणमेव च ।<br>अधिष्ठाय मनश्चायं विषयानुपसेवते ॥९॥`,
+`उत्क्रामन्तं स्थितं वापि भुञ्जानं वा गुणान्वितम् ।<br>विमूढा नानुपश्यन्ति पश्यन्ति ज्ञानचक्षुषः ॥१०॥`,
+`यतन्तो योगिनश्चैनं पश्यन्त्यात्मन्यवस्थितम् ।<br>यतन्तोऽप्यकृतात्मानो नैनं पश्यन्त्यचेतसः ॥११॥`,
+`यदादित्यगतं तेजो जगद्भासयतेऽखिलम् ।<br>यच्चन्द्रमसि यच्चाग्नौ तत्तेजो विद्धि मामकम् ॥१२॥`,
+`गामाविश्य च भूतानि धारयाम्यहमोजसा ।<br>पुष्णामि चौषधीः सर्वाः सोमो भूत्वा रसात्मकः ॥१३॥`,
+`अहं वैश्वानरो भूत्वा प्राणिनां देहमाश्रितः ।<br>प्राणापानसमायुक्तः पचाम्यन्नं चतुर्विधम् ॥१४॥`,
+`सर्वस्य चाहं हृदि सन्निविष्टो मत्तः स्मृतिर्ज्ञानमपोहनं च ।<br>वेदैश्च सर्वैरहमेव वेद्यो वेदान्तकृद्वेदविदेव चाहम् ॥१५॥`,
+`द्वाविमौ पुरुषौ लोके क्षरश्चाक्षर एव च ।<br>क्षरः सर्वाणि भूतानि कूटस्थोऽक्षर उच्यते ॥१६॥`,
+`उत्तमः पुरुषस्त्वन्यः परमात्मेत्युधाहृतः ।<br>यो लोकत्रयमाविश्य बिभर्त्यव्यय ईश्वरः ॥१७॥`,
+`यस्मात्क्षरमतीतोऽहमक्षरादपि चोत्तमः ।<br>अतोऽस्मि लोके वेदे च प्रथितः पुरुषोत्तमः ॥१८॥`,
+`यो मामेवमसम्मूढो जानाति पुरुषोत्तमम् ।<br>स सर्वविद्भजति मां सर्वभावेन भारत ॥१९॥`,
+`इति गुह्यतमं शास्त्रमिदमुक्तं मयानघ ।<br>एतद्बुद्ध्वा बुद्धिमान्स्यात्कृतकृत्यश्च भारत ॥२०॥`
+];
+let verse=0, takes=Array.from({length:20},()=>[]), recorder=null, chunks=[], started=0, timerID=null, stream=null;
+const $=id=>document.getElementById(id);
+function renderNav(){ $('verseNav').innerHTML=''; verses.forEach((_,i)=>{const b=document.createElement('button');b.textContent=i+1;b.className=(i===verse?'active ':'')+(takes[i].length===7?'done':'');b.onclick=()=>{if(!recorder){verse=i;render()}};$('verseNav').appendChild(b)})}
+function render(){ $('verseNumber').textContent=`Verse ${verse+1} of 20 · ${takes[verse].length}/7 recordings`; $('verseText').innerHTML=verses[verse]; renderNav(); renderSamples(); updateProgress() }
+function updateProgress(){let n=takes.reduce((a,b)=>a+b.length,0);$('progress').value=n;$('progressText').textContent=`${n} / 140 recordings`}
+function renderSamples(){const box=$('samples');box.innerHTML='';for(let i=0;i<7;i++){const d=document.createElement('div');d.className='sample';const t=document.createElement('strong');t.textContent=`Take ${i+1}`;d.appendChild(t);if(takes[verse][i]){const a=document.createElement('audio');a.controls=true;a.src=URL.createObjectURL(takes[verse][i].wav);d.appendChild(a);const b=document.createElement('button');b.className='secondary';b.textContent='Download PCM';b.onclick=()=>download(takes[verse][i].pcm,`v${String(verse+1).padStart(2,'0')}_${String(i+1).padStart(2,'0')}.pcm`);d.appendChild(b)}else{const p=document.createElement('div');p.className='note';p.textContent='Not recorded';d.appendChild(p)}box.appendChild(d)}}
+function fmt(ms){let x=ms/1000,m=Math.floor(x/60),s=Math.floor(x%60),t=Math.floor(x%1*10);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${t}`}
+function startClock(){started=performance.now();timerID=setInterval(()=>$('timer').textContent=fmt(performance.now()-started),50)}
+function stopClock(){clearInterval(timerID);timerID=null}
+async function startRecording(){if(takes[verse].length>=7){$('status').textContent='This verse already has 7 takes.';return}try{stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false}});chunks=[];recorder=new MediaRecorder(stream,{mimeType:'audio/webm;codecs=opus'});recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());$('status').textContent='Converting to PCM...';try{const r=await convert(new Blob(chunks,{type:'audio/webm'}));takes[verse].push(r);$('status').textContent=`Take ${takes[verse].length}/7 saved.`;render()}catch(e){console.error(e);$('status').textContent='Conversion failed.'}};recorder.start();$('record').disabled=true;$('stop').disabled=false;$('status').textContent='Recording...';$('timer').textContent='00:00.0';startClock()}catch(e){console.error(e);$('status').textContent='Microphone permission was denied or unavailable.'}}
+function stopRecording(){if(!recorder)return;recorder.stop();recorder=null;stopClock();$('record').disabled=false;$('stop').disabled=true;$('status').textContent='Processing...'}
+async function convert(blob){const ctx=new AudioContext();const data=await ctx.decodeAudioData(await blob.arrayBuffer());const input=data.getChannelData(0);const target=Math.round(data.duration*48000);const off=new OfflineAudioContext(1,target,48000);const b=off.createBuffer(1,input.length,data.sampleRate);b.copyToChannel(input,0);const src=off.createBufferSource();src.buffer=b;src.connect(off.destination);src.start();const rendered=await off.startRendering();const x=rendered.getChannelData(0);const raw=new ArrayBuffer(x.length*2),v=new DataView(raw);for(let i=0;i<x.length;i++){let s=Math.max(-1,Math.min(1,x[i]));v.setInt16(i*2,Math.round(s<0?s*32768:s*32767),true)}const wav=makeWav(x);await ctx.close();return{pcm:new Blob([raw],{type:'application/octet-stream'}),wav:new Blob([wav],{type:'audio/wav'})}}
+function makeWav(x){const b=new ArrayBuffer(44+x.length*2),v=new DataView(b);function w(o,s){for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))}w(0,'RIFF');v.setUint32(4,36+x.length*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,48000,true);v.setUint32(28,96000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,x.length*2,true);for(let i=0;i<x.length;i++){let s=Math.max(-1,Math.min(1,x[i]));v.setInt16(44+i*2,Math.round(s<0?s*32768:s*32767),true)}return b}
+function download(blob,name){const a=document.createElement('a');const u=URL.createObjectURL(blob);a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+$('record').onclick=startRecording;$('stop').onclick=stopRecording;$('prev').onclick=()=>{if(!recorder&&verse>0){verse--;render()}};$('next').onclick=()=>{if(!recorder&&verse<19){verse++;render()}};$('clear').onclick=()=>{if(!recorder){takes[verse]=[];$('status').textContent='Current verse cleared.';render()}};$('downloadAll').onclick=()=>{if(!takes[verse].length){$('status').textContent='No takes to download.';return}takes[verse].forEach((r,i)=>setTimeout(()=>download(r.pcm,`v${String(verse+1).padStart(2,'0')}_${String(i+1).padStart(2,'0')}.pcm`),i*350));$('status').textContent=`Downloading ${takes[verse].length} PCM files...`};render();
+</script>
+</body>
+</html>

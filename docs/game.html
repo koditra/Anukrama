@@ -40,7 +40,6 @@
 
     </header>
 
-
     <main class="game-container">
 
         <section class="game-heading">
@@ -54,7 +53,6 @@
             </h1>
 
         </section>
-
 
         <section class="practice-card">
 
@@ -70,7 +68,6 @@
                     Play audio
                 </button>
             </div>
-
 
             <div class="prompt">
 
@@ -90,9 +87,7 @@
 
             </div>
 
-
             <div class="line"></div>
-
 
             <div id="answer" class="answer hidden">
 
@@ -112,7 +107,6 @@
 
             </div>
 
-
             <div class="main-action">
 
                 <button
@@ -127,6 +121,72 @@
 
         </section>
 
+        <section class="pronunciation-card">
+
+            <div class="pronunciation-heading">
+                <div>
+                    <p class="pronunciation-label">
+                        PRONUNCIATION
+                    </p>
+
+                    <h2>
+                        Practice your recitation
+                    </h2>
+                </div>
+            </div>
+
+            <p id="aiStatus" class="ai-status">
+                Loading pronunciation AI...
+            </p>
+
+            <div class="pronunciation-actions">
+
+                <button
+                    id="recordButton"
+                    class="record-button"
+                    type="button"
+                    disabled
+                >
+                    Record pronunciation
+                </button>
+
+                <button
+                    id="scoreButton"
+                    class="score-button"
+                    type="button"
+                    disabled
+                >
+                    Score recording
+                </button>
+
+            </div>
+
+            <div
+                id="aiResult"
+                class="ai-result hidden"
+            >
+
+                <div class="score-display">
+                    <span
+                        id="scoreValue"
+                        class="score-value"
+                    >
+                        0
+                    </span>
+
+                    <span class="score-out-of">
+                        / 100
+                    </span>
+                </div>
+
+                <p
+                    id="scoreMessage"
+                    class="score-message"
+                ></p>
+
+            </div>
+
+        </section>
 
         <nav class="controls" aria-label="Verse controls">
 
@@ -156,7 +216,6 @@
 
         </nav>
 
-
         <p class="keyboard-hint">
             Press <kbd>Space</kbd> to reveal ·
             <kbd>←</kbd> <kbd>→</kbd> to change verse
@@ -164,12 +223,10 @@
 
     </main>
 
-
     <footer class="game-footer">
         <span>Anukrama</span>
         <span>Chapter 15</span>
     </footer>
-
 
     <script src="game.js"></script>
 
