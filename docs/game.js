@@ -1,5 +1,10 @@
 const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
 const ASSET_VERSION = "raw-score-fix-2026-09-05";
+const AI_BACKEND_URL = (() => {
+    const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
+    const localHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+    return localHost ? "http://127.0.0.1:8123" : "http://hackclub.app:8123";
+})();
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
@@ -3440,6 +3445,18 @@ async function prepareReferenceFeatures(
     return features;
 }
 
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        const chunk = bytes.subarray(i, i + 0x8000);
+        binary += String.fromCharCode(...chunk);
+    }
+
+    return btoa(binary);
+}
+
 async function initializeAI() {
     if (
         !recordButton ||
@@ -3449,43 +3466,23 @@ async function initializeAI() {
     }
 
     try {
-        aiStatus.textContent =
-            "Loading browser AI...";
+        const response = await fetch(`${AI_BACKEND_URL}/health`, {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        });
 
-        await loadONNXRuntime();
+        if (!response.ok) {
+            throw new Error(`backend responded with ${response.status}`);
+        }
 
-        aiStatus.textContent =
-            "Loading pronunciation models...";
-
-        await loadAIModel("v01");
-        await loadAIModel("v02");
-
-        await Promise.all([
-            loadScaler("v01"),
-            loadScaler("v02"),
-            loadReference("v01"),
-            loadReference("v02")
-        ]);
-
-        aiStatus.textContent =
-            "Extracting reference features...";
-
-        await prepareReferenceFeatures("v01");
-        await prepareReferenceFeatures("v02");
-
-        aiStatus.textContent =
-            "Pronunciation AI ready.";
-
-        updateAIForVerse();
+        aiStatus.textContent = "Pronunciation AI ready.";
+        recordButton.disabled = false;
+        scoreButton.disabled = false;
     } catch (error) {
-        console.error(
-            "AI initialization failed:",
-            error
-        );
-
-        aiStatus.textContent =
-            `AI error: ${error.message}`;
-
+        console.error("AI initialization failed:", error);
+        aiStatus.textContent = `AI error: ${error.message}`;
         recordButton.disabled = true;
         scoreButton.disabled = true;
     }
@@ -3503,105 +3500,46 @@ async function scoreRecording() {
         return;
     }
 
-    const key =
-        `v${String(currentVerse).padStart(2, "0")}`;
-
-    if (!models[key]) {
-        aiStatus.textContent =
-            "The pronunciation model is not ready.";
-
-        return;
-    }
-
-    if (!referenceFeatures[key]) {
-        aiStatus.textContent =
-            "The reference recordings are not ready.";
-
-        return;
-    }
-
-    if (!scalers[key]) {
-        aiStatus.textContent =
-            "The pronunciation scaler is not ready.";
-
-        return;
-    }
+    const key = `v${String(currentVerse).padStart(2, "0")}`;
+    const wavBuffer = createWav(recordedAudio.samples);
+    const audioBase64 = arrayBufferToBase64(wavBuffer);
 
     scoreButton.disabled = true;
     recordButton.disabled = true;
 
     try {
-        aiStatus.textContent =
-            "Extracting pronunciation features...";
+        aiStatus.textContent = "Sending recording to AI backend...";
 
-        const recordingFeatures =
-            extractFeatures(
-                recordedAudio.samples
-            );
+        const response = await fetch(`${AI_BACKEND_URL}/score`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                verse: key,
+                audio: audioBase64,
+                sampleRate: SAMPLE_RATE
+            })
+        });
 
-        aiStatus.textContent =
-            "Comparing with reference recordings...";
-
-        const comparisons = [];
-
-        for (
-            let i = 0;
-            i < referenceFeatures[key].length;
-            i++
-        ) {
-            comparisons.push(
-                compareFeatures(
-                    referenceFeatures[key][i],
-                    recordingFeatures
-                )
-            );
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `backend responded with ${response.status}`);
         }
 
-        const features =
-            aggregateComparisons(
-                comparisons
-            );
+        const payload = await response.json();
+        const score = Number(payload.score ?? 0);
 
-        if (
-            features.length !== 16
-        ) {
-            throw new Error(
-                `Expected 16 model features, received ${features.length}.`
-            );
+        if (!Number.isFinite(score)) {
+            throw new Error("The AI backend returned an invalid score.");
         }
 
-        const scaled =
-            scaleFeatures(
-                features,
-                scalers[key]
-            );
-
-        aiStatus.textContent =
-            "Running pronunciation model...";
-
-        const output =
-            await runONNX(
-                key,
-                scaled
-            );
-
-        const score =
-            convertPredictionToScore(
-                output
-            );
-
-        displayScore(score);
-
-        aiStatus.textContent =
-            "Pronunciation scored.";
+        displayScore(Math.max(0, Math.min(100, Math.round(score))));
+        aiStatus.textContent = "Pronunciation scored.";
     } catch (error) {
-        console.error(
-            "Scoring failed:",
-            error
-        );
-
-        aiStatus.textContent =
-            `Scoring error: ${error.message}`;
+        console.error("Scoring failed:", error);
+        aiStatus.textContent = `Scoring error: ${error.message}`;
     } finally {
         scoreButton.disabled = false;
         recordButton.disabled = false;

@@ -18,8 +18,8 @@ N_MELS = 40
 EPOCHS = 500
 LEARNING_RATE = 0.0005
 
-BASE_DIR = "/Users/facebook/Anukrama/ai"
-VERSE = "v02"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+VERSE = os.environ.get("VERSE", "v02")
 REFERENCE_DIR = os.path.join(BASE_DIR, "data", "ch15", VERSE)
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 SCALER_DIR = os.path.join(BASE_DIR, "scalers")
