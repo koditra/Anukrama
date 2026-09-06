@@ -1,4 +1,5 @@
 const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
+const ASSET_VERSION = "raw-score-fix-2026-09-05";
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
@@ -10,6 +11,17 @@ const HOP_LENGTH = 512;
 const AI_BASE = `${BASE_URL}/ai`;
 const GITHUB_API = "https://api.github.com/repos/koditra/Anukrama/contents";
 
+function withAssetVersion(url) {
+    try {
+        const finalUrl = new URL(url, window.location.href);
+        finalUrl.searchParams.set("v", ASSET_VERSION);
+        return finalUrl.toString();
+    } catch (error) {
+        const separator = url.includes("?") ? "&" : "?";
+        return `${url}${separator}v=${ASSET_VERSION}`;
+    }
+}
+
 function resolveAssetUrl(path) {
     const normalized = path.replace(/^\.?\//, "");
     const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
@@ -17,10 +29,10 @@ function resolveAssetUrl(path) {
 
     if (localHost) {
         const relative = `../${normalized}`;
-        return new URL(relative, window.location.href).toString();
+        return withAssetVersion(new URL(relative, window.location.href).toString());
     }
 
-    return `${BASE_URL}/${normalized}`;
+    return withAssetVersion(`${BASE_URL}/${normalized}`);
 }
 
 const MODEL_URLS = {
@@ -176,7 +188,7 @@ async function loadONNXRuntime() {
 
 async function fetchText(path) {
     const normalized = path.replace(/^\.?\//, "");
-    const response = await fetch(`${BASE_URL}/${normalized}`);
+    const response = await fetch(withAssetVersion(`${BASE_URL}/${normalized}`));
 
     if (!response.ok) {
         throw new Error(`Failed to load ${path}`);
@@ -187,7 +199,7 @@ async function fetchText(path) {
 
 async function fetchJson(path) {
     const normalized = path.replace(/^\.?\//, "");
-    const response = await fetch(`${BASE_URL}/${normalized}`);
+    const response = await fetch(withAssetVersion(`${BASE_URL}/${normalized}`));
 
     if (!response.ok) {
         throw new Error(`Failed to load ${path}`);
@@ -204,7 +216,7 @@ async function fetchBinary(url) {
             ? url
             : `${BASE_URL}/${url.replace(/^\.?\//, "")}`;
 
-    const response = await fetch(finalUrl);
+    const response = await fetch(withAssetVersion(finalUrl));
 
     if (!response.ok) {
         throw new Error(`Failed to load ${url}`);
