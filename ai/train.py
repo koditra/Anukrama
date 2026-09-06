@@ -420,19 +420,14 @@ class PronunciationModel(
             nn.Linear(
                 16,
                 1
-            ),
-
-            nn.Sigmoid()
+            )
         )
 
     def forward(
         self,
         x
     ):
-        return (
-            self.network(x)
-            * 100.0
-        )
+        return self.network(x)
 
 def fit_scaler(X):
     X = np.asarray(

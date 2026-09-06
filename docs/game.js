@@ -3352,19 +3352,16 @@ function convertPredictionToScore(
         return 0;
     }
 
-    let score = value;
+    const score =
+        Math.max(
+            0,
+            Math.min(
+                100,
+                Math.round(value)
+            )
+        );
 
-    if (score >= 0 && score <= 1) {
-        score *= 100;
-    }
-
-    return Math.max(
-        0,
-        Math.min(
-            100,
-            Math.round(score)
-        )
-    );
+    return score;
 }
 
 function displayScore(score) {
