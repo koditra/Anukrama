@@ -2,22 +2,40 @@ const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
+const N_MFCC = 20;
+const N_MELS = 40;
+const N_FFT = 2048;
+const HOP_LENGTH = 512;
 
 const AI_BASE = `${BASE_URL}/ai`;
+const GITHUB_API = "https://api.github.com/repos/koditra/Anukrama/contents";
+
+function resolveAssetUrl(path) {
+    const normalized = path.replace(/^\.?\//, "");
+    const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
+    const localHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+
+    if (localHost) {
+        const relative = `../${normalized}`;
+        return new URL(relative, window.location.href).toString();
+    }
+
+    return `${BASE_URL}/${normalized}`;
+}
 
 const MODEL_URLS = {
-    v01: `${AI_BASE}/models/anukrama_v01_score_best.onnx`,
-    v02: `${AI_BASE}/models/anukrama_v02_score_best.onnx`
+    v01: resolveAssetUrl("ai/models/anukrama_v01_score_best.onnx"),
+    v02: resolveAssetUrl("ai/models/anukrama_v02_score_best.onnx")
 };
 
 const SCALER_URLS = {
-    v01: `${AI_BASE}/scalers/anukrama_v01_scaler.npz`,
-    v02: `${AI_BASE}/scalers/anukrama_v02_scaler.npz`
+    v01: resolveAssetUrl("ai/scalers/anukrama_v01_scaler.npz"),
+    v02: resolveAssetUrl("ai/scalers/anukrama_v02_scaler.npz")
 };
 
-const REFERENCE_URLS = {
-    v01: `${BASE_URL}/audio/chapter_15/v01.pcm`,
-    v02: `${BASE_URL}/audio/chapter_15/v02.pcm`
+const REFERENCE_DIRS = {
+    v01: "ai/data/ch15/v01/good",
+    v02: "ai/data/ch15/v02/good"
 };
 
 let currentVerse = 1;
@@ -35,6 +53,11 @@ const scalers = {
 };
 
 const references = {
+    v01: null,
+    v02: null
+};
+
+const referenceFeatures = {
     v01: null,
     v02: null
 };
@@ -73,14 +96,19 @@ async function loadONNXRuntime() {
 
     if (window.ort) {
         onnxRuntime = window.ort;
+
         onnxRuntime.env.wasm.wasmPaths =
             "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+
         return onnxRuntime;
     }
 
     if (aiStatus) {
         aiStatus.textContent = "Loading pronunciation AI...";
     }
+
+    window.Module = window.Module || {};
+    window.Module.MountedFiles = window.Module.MountedFiles || {};
 
     const existingScript = document.querySelector(
         'script[src*="onnxruntime-web"]'
@@ -93,17 +121,23 @@ async function loadONNXRuntime() {
                 return;
             }
 
-            existingScript.addEventListener("load", resolve, {
-                once: true
-            });
+            existingScript.addEventListener(
+                "load",
+                resolve,
+                { once: true }
+            );
 
-            existingScript.addEventListener("error", () => {
-                reject(
-                    new Error("Failed to load ONNX Runtime Web.")
-                );
-            }, {
-                once: true
-            });
+            existingScript.addEventListener(
+                "error",
+                () => {
+                    reject(
+                        new Error(
+                            "Failed to load ONNX Runtime Web."
+                        )
+                    );
+                },
+                { once: true }
+            );
         });
     } else {
         await new Promise((resolve, reject) => {
@@ -116,7 +150,9 @@ async function loadONNXRuntime() {
 
             script.onerror = () => {
                 reject(
-                    new Error("Failed to load ONNX Runtime Web.")
+                    new Error(
+                        "Failed to load ONNX Runtime Web."
+                    )
                 );
             };
 
@@ -139,7 +175,8 @@ async function loadONNXRuntime() {
 }
 
 async function fetchText(path) {
-    const response = await fetch(`${BASE_URL}/${path}`);
+    const normalized = path.replace(/^\.?\//, "");
+    const response = await fetch(`${BASE_URL}/${normalized}`);
 
     if (!response.ok) {
         throw new Error(`Failed to load ${path}`);
@@ -149,7 +186,8 @@ async function fetchText(path) {
 }
 
 async function fetchJson(path) {
-    const response = await fetch(`${BASE_URL}/${path}`);
+    const normalized = path.replace(/^\.?\//, "");
+    const response = await fetch(`${BASE_URL}/${normalized}`);
 
     if (!response.ok) {
         throw new Error(`Failed to load ${path}`);
@@ -158,11 +196,18 @@ async function fetchJson(path) {
     return response.json();
 }
 
-async function fetchBinary(path) {
-    const response = await fetch(path);
+async function fetchBinary(url) {
+    const normalized = url.replace(/^https?:\/\//i, "");
+    const finalUrl = normalized.startsWith("raw.githubusercontent.com/")
+        ? `https://${normalized}`
+        : /^https?:\/\//i.test(url)
+            ? url
+            : `${BASE_URL}/${url.replace(/^\.?\//, "")}`;
+
+    const response = await fetch(finalUrl);
 
     if (!response.ok) {
-        throw new Error(`Failed to load ${path}`);
+        throw new Error(`Failed to load ${url}`);
     }
 
     return response.arrayBuffer();
@@ -174,7 +219,11 @@ function createWav(buffer) {
     const bitsPerSample = 16;
     const blockAlign = channels * bitsPerSample / 8;
     const byteRate = SAMPLE_RATE * blockAlign;
-    const wav = new ArrayBuffer(44 + pcm.length * 2);
+
+    const wav = new ArrayBuffer(
+        44 + pcm.length * 2
+    );
+
     const view = new DataView(wav);
 
     function writeString(offset, value) {
@@ -187,13 +236,16 @@ function createWav(buffer) {
     }
 
     writeString(0, "RIFF");
+
     view.setUint32(
         4,
         36 + pcm.length * 2,
         true
     );
+
     writeString(8, "WAVE");
     writeString(12, "fmt ");
+
     view.setUint32(16, 16, true);
     view.setUint16(20, 1, true);
     view.setUint16(22, channels, true);
@@ -201,7 +253,9 @@ function createWav(buffer) {
     view.setUint32(28, byteRate, true);
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitsPerSample, true);
+
     writeString(36, "data");
+
     view.setUint32(
         40,
         pcm.length * 2,
@@ -323,17 +377,23 @@ async function loadVerse(id) {
     currentVerse = id;
 
     verseNumber.textContent = id;
+
     progressText.textContent =
         `${id} / ${TOTAL_VERSES}`;
 
-    quarterDevanagari.textContent = "Loading...";
-    quarterEnglish.textContent = "Loading...";
+    quarterDevanagari.textContent =
+        "Loading...";
+
+    quarterEnglish.textContent =
+        "Loading...";
+
     verseDevanagari.textContent = "";
     verseEnglish.textContent = "";
 
     answer.classList.add("hidden");
 
-    revealButton.textContent = "Reveal verse";
+    revealButton.textContent =
+        "Reveal verse";
 
     audioButton.disabled = true;
     audioButton.textContent = "Loading...";
@@ -343,7 +403,9 @@ async function loadVerse(id) {
 
     if (card) {
         card.classList.remove("verse-enter");
+
         void card.offsetWidth;
+
         card.classList.add("verse-enter");
     }
 
@@ -380,7 +442,8 @@ async function loadVerse(id) {
             english.trim();
 
         audioButton.disabled = false;
-        audioButton.textContent = "Play verse";
+        audioButton.textContent =
+            "Play verse";
 
         if (id !== 1) {
             const audioNumber =
@@ -413,13 +476,10 @@ async function loadVerse(id) {
 function revealVerse() {
     answer.classList.toggle("hidden");
 
-    if (answer.classList.contains("hidden")) {
-        revealButton.textContent =
-            "Reveal verse";
-    } else {
-        revealButton.textContent =
-            "Hide verse";
-    }
+    revealButton.textContent =
+        answer.classList.contains("hidden")
+            ? "Reveal verse"
+            : "Hide verse";
 }
 
 async function playVerseAudio() {
@@ -427,7 +487,8 @@ async function playVerseAudio() {
         String(currentVerse).padStart(2, "0");
 
     audioButton.disabled = true;
-    audioButton.textContent = "Playing...";
+    audioButton.textContent =
+        "Playing...";
 
     const success = await playPcm(
         `audio/chapter_15/v${audioNumber}.pcm`
@@ -469,7 +530,9 @@ async function randomVerse() {
             Math.floor(
                 Math.random() * TOTAL_VERSES
             ) + 1;
-    } while (random === currentVerse);
+    } while (
+        random === currentVerse
+    );
 
     await loadVerse(random);
 }
@@ -482,21 +545,55 @@ async function loadAIModel(key) {
         return models[key];
     }
 
-    models[key] =
-        await runtime.InferenceSession.create(
-            MODEL_URLS[key],
-            {
-                executionProviders: ["wasm"]
-            }
-        );
+    const modelUrl = MODEL_URLS[key];
 
-    return models[key];
+    try {
+        models[key] = await runtime.InferenceSession.create(modelUrl, {
+            executionProviders: ["wasm"]
+        });
+        return models[key];
+    } catch (err) {
+        console.warn(`WASM model load failed for ${key}:`, err && err.message ? err.message : err);
+    }
+
+    try {
+        console.warn(`Falling back to WebGL provider for ${key}`);
+        models[key] = await runtime.InferenceSession.create(modelUrl, {
+            executionProviders: ["webgl"]
+        });
+        return models[key];
+    } catch (err2) {
+        console.warn(`WebGL fallback failed for ${key}:`, err2 && err2.message ? err2.message : err2);
+    }
+
+    try {
+        models[key] = await runtime.InferenceSession.create(modelUrl);
+        return models[key];
+    } catch (finalErr) {
+        throw finalErr;
+    }
+}
+
+function readUInt16(view, offset) {
+    return view.getUint16(
+        offset,
+        true
+    );
+}
+
+function readUInt32(view, offset) {
+    return view.getUint32(
+        offset,
+        true
+    );
 }
 
 function parseNPY(buffer) {
-    const bytes = new Uint8Array(buffer);
+    const bytes =
+        new Uint8Array(buffer);
 
     if (
+        bytes.length < 10 ||
         bytes[0] !== 0x93 ||
         bytes[1] !== 0x4e ||
         bytes[2] !== 0x55 ||
@@ -504,7 +601,9 @@ function parseNPY(buffer) {
         bytes[4] !== 0x50 ||
         bytes[5] !== 0x59
     ) {
-        throw new Error("Invalid NPY file.");
+        throw new Error(
+            "Invalid NPY file."
+        );
     }
 
     const major = bytes[6];
@@ -515,29 +614,42 @@ function parseNPY(buffer) {
 
     if (major === 1) {
         headerLength =
-            bytes[8] |
-            (bytes[9] << 8);
+            readUInt16(
+                new DataView(buffer),
+                8
+            );
 
         headerOffset = 10;
-    } else {
+    } else if (major === 2 || major === 3) {
         headerLength =
-            bytes[8] |
-            (bytes[9] << 8) |
-            (bytes[10] << 16) |
-            (bytes[11] << 24);
+            readUInt32(
+                new DataView(buffer),
+                8
+            );
 
         headerOffset = 12;
+    } else {
+        throw new Error(
+            `Unsupported NPY version ${major}.${minor}.`
+        );
     }
 
-    const headerBytes =
-        bytes.slice(
-            headerOffset,
-            headerOffset + headerLength
+    const headerEnd =
+        headerOffset +
+        headerLength;
+
+    if (headerEnd > bytes.length) {
+        throw new Error(
+            "NPY header extends beyond file."
         );
+    }
 
     const header =
         new TextDecoder().decode(
-            headerBytes
+            bytes.slice(
+                headerOffset,
+                headerEnd
+            )
         );
 
     const descrMatch =
@@ -552,59 +664,109 @@ function parseNPY(buffer) {
 
     if (!descrMatch) {
         throw new Error(
-            "NPY descriptor missing."
+            "NPY dtype descriptor missing."
         );
     }
 
-    const descr = descrMatch[1];
+    const descr =
+        descrMatch[1];
 
-    const shape = shapeMatch
-        ? shapeMatch[1]
-            .split(",")
-            .map(value => value.trim())
-            .filter(Boolean)
-            .map(Number)
-        : [];
+    let shape = [];
+
+    if (shapeMatch) {
+        shape =
+            shapeMatch[1]
+                .split(",")
+                .map(value => value.trim())
+                .filter(Boolean)
+                .map(Number);
+    }
+
+    const fortranMatch =
+        header.match(
+            /['"]fortran_order['"]\s*:\s*(True|False)/
+        );
+
+    const fortranOrder =
+        fortranMatch
+            ? fortranMatch[1] === "True"
+            : false;
+
+    if (fortranOrder) {
+        throw new Error(
+            "Fortran-order NPY arrays are unsupported."
+        );
+    }
 
     const dataOffset =
-        headerOffset + headerLength;
+        headerEnd;
 
-    let TypedArray;
+    let bytesPerElement;
 
-    if (
-        descr === "<f4" ||
-        descr === "|f4"
-    ) {
-        TypedArray = Float32Array;
-    } else if (
-        descr === "<f8" ||
-        descr === "|f8"
-    ) {
-        TypedArray = Float64Array;
+    if (descr.endsWith("f4")) {
+        bytesPerElement = 4;
+    } else if (descr.endsWith("f8")) {
+        bytesPerElement = 8;
     } else {
         throw new Error(
             `Unsupported NPY dtype: ${descr}`
         );
     }
 
-    const byteLength =
-        bytes.byteLength - dataOffset;
-
     const count =
         Math.floor(
-            byteLength /
-            TypedArray.BYTES_PER_ELEMENT
+            (
+                bytes.length -
+                dataOffset
+            ) /
+            bytesPerElement
         );
 
-    const values =
-        new TypedArray(
-            bytes.buffer,
-            bytes.byteOffset + dataOffset,
-            count
-        );
+    const output =
+        new Array(count);
+
+    const dataView =
+        new DataView(buffer);
+
+    const firstChar = descr[0];
+
+    let littleEndian;
+
+    if (firstChar === ">") {
+        littleEndian = false;
+    } else if (firstChar === "<" || firstChar === "|") {
+        littleEndian = true;
+    } else {
+        littleEndian = true;
+    }
+
+    for (
+        let i = 0;
+        i < count;
+        i++
+    ) {
+        const offset =
+            dataOffset +
+            i *
+            bytesPerElement;
+
+        if (bytesPerElement === 4) {
+            output[i] =
+                dataView.getFloat32(
+                    offset,
+                    littleEndian
+                );
+        } else {
+            output[i] =
+                dataView.getFloat64(
+                    offset,
+                    littleEndian
+                );
+        }
+    }
 
     return {
-        data: Array.from(values),
+        data: output,
         shape
     };
 }
@@ -614,116 +776,93 @@ async function loadZipEntries(buffer) {
     const view = new DataView(buffer);
     const entries = {};
 
-    let offset = 0;
+    let eocdOffset = -1;
+    const maxComment = 0xffff;
+    const startSearch = Math.max(0, bytes.length - (maxComment + 22));
 
-    while (offset + 4 <= bytes.length) {
-        const signature =
-            view.getUint32(
-                offset,
-                true
-            );
+    for (let i = bytes.length - 22; i >= startSearch; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) {
+            eocdOffset = i;
+            break;
+        }
+    }
 
-        if (signature === 0x04034b50) {
-            const compression =
-                view.getUint16(
-                    offset + 8,
-                    true
-                );
+    if (eocdOffset === -1) {
+        throw new Error("Invalid ZIP: EOCD record not found.");
+    }
 
-            const compressedSize =
-                view.getUint32(
-                    offset + 18,
-                    true
-                );
+    const centralDirSize = view.getUint32(eocdOffset + 12, true);
+    const centralDirOffset = view.getUint32(eocdOffset + 16, true);
 
-            const fileNameLength =
-                view.getUint16(
-                    offset + 26,
-                    true
-                );
+    let offset = centralDirOffset;
 
-            const extraLength =
-                view.getUint16(
-                    offset + 28,
-                    true
-                );
+    while (offset + 46 <= bytes.length) {
+        const sig = view.getUint32(offset, true);
 
-            const nameStart =
-                offset + 30;
+        if (sig !== 0x02014b50) break;
 
-            const name =
-                new TextDecoder().decode(
-                    bytes.slice(
-                        nameStart,
-                        nameStart + fileNameLength
-                    )
-                );
+        const compression = view.getUint16(offset + 10, true);
+        const compressedSize = view.getUint32(offset + 20, true);
+        const uncompressedSize = view.getUint32(offset + 24, true);
+        const fileNameLength = view.getUint16(offset + 28, true);
+        const extraLength = view.getUint16(offset + 30, true);
+        const commentLength = view.getUint16(offset + 32, true);
+        const relOffset = view.getUint32(offset + 42, true);
 
-            const dataStart =
-                nameStart +
-                fileNameLength +
-                extraLength;
+        const nameStart = offset + 46;
+        const nameEnd = nameStart + fileNameLength;
 
-            const dataEnd =
-                dataStart +
-                compressedSize;
+        if (nameEnd > bytes.length) break;
 
-            const compressed =
-                bytes.slice(
-                    dataStart,
-                    dataEnd
-                );
+        const name = new TextDecoder().decode(bytes.slice(nameStart, nameEnd));
 
-            if (compression === 0) {
-                entries[name] =
-                    compressed.buffer.slice(
-                        compressed.byteOffset,
-                        compressed.byteOffset +
-                            compressed.byteLength
-                    );
-            } else if (compression === 8) {
-                if (
-                    !("DecompressionStream" in window)
-                ) {
-                    throw new Error(
-                        "This browser does not support ZIP decompression."
-                    );
-                }
+        if (relOffset + 30 > bytes.length) {
+            throw new Error(`Invalid local header offset for ${name}`);
+        }
 
-                const stream =
-                    new Blob([compressed])
-                        .stream()
-                        .pipeThrough(
-                            new DecompressionStream(
-                                "deflate-raw"
-                            )
-                        );
+        const localSig = view.getUint32(relOffset, true);
 
-                entries[name] =
-                    await new Response(
-                        stream
-                    ).arrayBuffer();
-            } else {
-                throw new Error(
-                    `Unsupported ZIP compression: ${compression}`
-                );
+        if (localSig !== 0x04034b50) {
+            throw new Error(`Invalid local header for ${name}`);
+        }
+
+        const localNameLen = view.getUint16(relOffset + 26, true);
+        const localExtraLen = view.getUint16(relOffset + 28, true);
+
+        const dataStart = relOffset + 30 + localNameLen + localExtraLen;
+        const dataEnd = dataStart + compressedSize;
+
+        if (dataEnd > bytes.length) {
+            throw new Error(`Invalid ZIP entry: ${name}`);
+        }
+
+        const compressed = bytes.slice(dataStart, dataEnd);
+
+        if (compression === 0) {
+            entries[name] = compressed.buffer.slice(compressed.byteOffset, compressed.byteOffset + compressed.byteLength);
+        } else if (compression === 8) {
+            if (!('DecompressionStream' in window)) {
+                throw new Error('This browser does not support ZIP decompression.');
             }
 
-            offset = dataEnd;
-        } else if (
-            signature === 0x02014b50 ||
-            signature === 0x06054b50
-        ) {
-            break;
+            const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+
+            entries[name] = await new Response(stream).arrayBuffer();
         } else {
-            offset++;
+            throw new Error(`Unsupported ZIP compression: ${compression}`);
         }
+
+        offset = offset + 46 + fileNameLength + extraLength + commentLength;
     }
 
     return entries;
 }
 
 async function loadScaler(key) {
+    if (scalers[key]) {
+        return scalers[key];
+    }
+
     const buffer =
         await fetchBinary(
             SCALER_URLS[key]
@@ -738,20 +877,20 @@ async function loadScaler(key) {
     const meanName =
         names.find(
             name =>
-                name.endsWith("mean.npy") ||
-                name.endsWith("mean_.npy")
+                name === "mean.npy" ||
+                name.endsWith("/mean.npy")
         );
 
-    const scaleName =
+    const stdName =
         names.find(
             name =>
-                name.endsWith("scale.npy") ||
-                name.endsWith("scale_.npy")
+                name === "std.npy" ||
+                name.endsWith("/std.npy")
         );
 
-    if (!meanName || !scaleName) {
+    if (!meanName || !stdName) {
         throw new Error(
-            `Scaler arrays not found in ${key} scaler.`
+            `Scaler arrays not found in ${key} scaler. Found: ${names.join(", ")}`
         );
     }
 
@@ -762,8 +901,17 @@ async function loadScaler(key) {
 
     const std =
         parseNPY(
-            entries[scaleName]
+            entries[stdName]
         ).data;
+
+    if (
+        mean.length !== 16 ||
+        std.length !== 16
+    ) {
+        throw new Error(
+            `${key} scaler contains mean=${mean.length}, std=${std.length}; expected 16 and 16.`
+        );
+    }
 
     scalers[key] = {
         mean,
@@ -773,37 +921,150 @@ async function loadScaler(key) {
     return scalers[key];
 }
 
-async function loadReference(key) {
-    const buffer =
-        await fetchBinary(
-            REFERENCE_URLS[key]
-        );
+async function listReferenceFiles(key) {
+    const path =
+        REFERENCE_DIRS[key];
 
-    if (buffer.byteLength % 2 !== 0) {
+    try {
+        const response = await fetch(`${GITHUB_API}/${path}?per_page=100`, {
+            headers: {
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "Anukrama-GitHub-Pages"
+            }
+        });
+
+        if (response.ok) {
+            const files = await response.json();
+
+            return files
+                .filter(
+                    file =>
+                        file.type === "file" &&
+                        file.name
+                            .toLowerCase()
+                            .endsWith(".pcm")
+                )
+                .sort((a, b) =>
+                    a.name.localeCompare(b.name, undefined, {
+                        numeric: true
+                    })
+                );
+        }
+    } catch (e) {
+        // ignore and fall back to probing raw file names
+    }
+
+    // GitHub Pages and raw GitHub are the intended hosting model for this repo.
+    // Avoid depending on the GitHub API because it can return 403 in anonymous browser contexts.
+    // Filename pattern in the repo: e.g. v01_01.pcm, v01_02.pcm, ...
+    const prefix = key; // 'v01' or 'v02'
+    const results = [];
+
+    let consecutiveMisses = 0;
+
+    for (let i = 1; i <= 50; i++) {
+        const name = `${prefix}_${String(i).padStart(2, "0")}.pcm`;
+        const url = `${BASE_URL}/${path}/${name}`;
+
+        try {
+            // Prefer HEAD to avoid downloading full files; fall back to GET if HEAD fails.
+            let ok = false;
+
+            try {
+                const head = await fetch(url, { method: "HEAD" });
+                ok = head.ok;
+            } catch (headErr) {
+                // Some hosts/CORS configurations disallow HEAD; try GET.
+                const get = await fetch(url, { method: "GET" });
+                ok = get.ok;
+            }
+
+            if (ok) {
+                results.push({ name, download_url: url, type: "file" });
+                consecutiveMisses = 0;
+            } else {
+                consecutiveMisses++;
+            }
+        } catch (err) {
+            consecutiveMisses++;
+        }
+
+        // Stop after several consecutive misses to avoid long probing.
+        if (consecutiveMisses >= 6) break;
+    }
+
+    // Sort discovered files and return in the same shape as GitHub API results.
+    results.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+    return results;
+}
+
+function pcmToFloat32(buffer) {
+    if (
+        buffer.byteLength % 2 !== 0
+    ) {
         throw new Error(
-            "Reference PCM has an invalid byte length."
+            "PCM file has an odd byte length."
         );
     }
 
-    const pcm =
-        new Int16Array(buffer);
+    const view =
+        new DataView(buffer);
 
-    const samples =
-        new Float32Array(
-            pcm.length
-        );
+    const count =
+        buffer.byteLength / 2;
 
-    for (let i = 0; i < pcm.length; i++) {
-        samples[i] =
-            pcm[i] / 32768;
+    const output =
+        new Float32Array(count);
+
+    for (
+        let i = 0;
+        i < count;
+        i++
+    ) {
+        output[i] =
+            view.getInt16(
+                i * 2,
+                true
+            ) /
+            32768;
     }
 
-    references[key] = {
-        samples,
-        sampleRate: SAMPLE_RATE
-    };
+    return output;
+}
 
-    return references[key];
+async function loadReference(key) {
+    if (references[key]) {
+        return references[key];
+    }
+
+    const files =
+        await listReferenceFiles(key);
+
+    if (!files.length) {
+        throw new Error(
+            `No good reference recordings found for ${key}.`
+        );
+    }
+
+    const loaded = [];
+
+    for (const file of files) {
+        const buffer =
+            await fetchBinary(
+                file.download_url
+            );
+
+        loaded.push({
+            name: file.name,
+            samples: pcmToFloat32(buffer),
+            sampleRate: SAMPLE_RATE
+        });
+    }
+
+    references[key] = loaded;
+
+    return loaded;
 }
 
 function updateAIForVerse() {
@@ -834,10 +1095,10 @@ function updateAIForVerse() {
     if (
         models[key] &&
         scalers[key] &&
-        references[key]
+        referenceFeatures[key]
     ) {
         aiStatus.textContent =
-            "Pronunciation AI ready.";
+            `Pronunciation AI ready — ${referenceFeatures[key].length} reference recordings.`;
 
         recordButton.disabled = false;
     } else {
@@ -854,16 +1115,22 @@ function resampleAudio(
     sourceRate,
     targetRate
 ) {
-    if (sourceRate === targetRate) {
-        return new Float32Array(samples);
+    if (
+        sourceRate === targetRate
+    ) {
+        return new Float32Array(
+            samples
+        );
     }
 
     const ratio =
-        sourceRate / targetRate;
+        sourceRate /
+        targetRate;
 
     const outputLength =
         Math.floor(
-            samples.length / ratio
+            samples.length /
+            ratio
         );
 
     const output =
@@ -892,8 +1159,10 @@ function resampleAudio(
             position - left;
 
         output[i] =
-            samples[left] * (1 - amount) +
-            samples[right] * amount;
+            samples[left] *
+                (1 - amount) +
+            samples[right] *
+                amount;
     }
 
     return output;
@@ -963,7 +1232,9 @@ async function startRecording() {
         mediaRecorder.addEventListener(
             "dataavailable",
             event => {
-                if (event.data.size > 0) {
+                if (
+                    event.data.size > 0
+                ) {
                     recordingChunks.push(
                         event.data
                     );
@@ -977,7 +1248,7 @@ async function startRecording() {
                 const mimeType =
                     mediaRecorder.mimeType;
 
-                recordedAudio =
+                const blob =
                     new Blob(
                         recordingChunks,
                         {
@@ -988,7 +1259,8 @@ async function startRecording() {
                 mediaStream
                     .getTracks()
                     .forEach(
-                        track => track.stop()
+                        track =>
+                            track.stop()
                     );
 
                 mediaStream = null;
@@ -1005,10 +1277,11 @@ async function startRecording() {
                 try {
                     const decoded =
                         await decodeRecordedAudio(
-                            recordedAudio
+                            blob
                         );
 
-                    recordedAudio = decoded;
+                    recordedAudio =
+                        decoded;
 
                     recordedSampleRate =
                         decoded.sampleRate;
@@ -1021,10 +1294,13 @@ async function startRecording() {
                 } catch (error) {
                     console.error(error);
 
+                    recordedAudio = null;
+
                     aiStatus.textContent =
                         `Audio processing error: ${error.message}`;
 
-                    scoreButton.disabled = true;
+                    scoreButton.disabled =
+                        true;
                 }
             }
         );
@@ -1057,196 +1333,1472 @@ function stopRecording() {
     }
 }
 
-function normalizeAudio(samples) {
-    let peak = 0;
-
-    for (let i = 0; i < samples.length; i++) {
-        peak =
-            Math.max(
-                peak,
-                Math.abs(samples[i])
-            );
-    }
-
-    if (peak === 0) {
-        return new Float32Array(samples);
-    }
-
-    const output =
-        new Float32Array(
+function prepareAudio(samples) {
+    const audio =
+        new Float64Array(
             samples.length
         );
 
-    for (let i = 0; i < samples.length; i++) {
+    let mean = 0;
+
+    for (
+        let i = 0;
+        i < samples.length;
+        i++
+    ) {
+        mean += samples[i];
+    }
+
+    mean /=
+        samples.length;
+
+    for (
+        let i = 0;
+        i < samples.length;
+        i++
+    ) {
+        audio[i] =
+            samples[i] -
+            mean;
+    }
+
+    let peak = 0;
+
+    for (
+        let i = 0;
+        i < audio.length;
+        i++
+    ) {
+        peak =
+            Math.max(
+                peak,
+                Math.abs(audio[i])
+            );
+    }
+
+    if (peak > 0) {
+        for (
+            let i = 0;
+            i < audio.length;
+            i++
+        ) {
+            audio[i] /=
+                peak;
+        }
+    }
+
+    return audio;
+}
+
+function hannWindow(length) {
+    const window =
+        new Float64Array(
+            length
+        );
+
+    for (
+        let i = 0;
+        i < length;
+        i++
+    ) {
+        window[i] =
+            0.5 -
+            0.5 *
+                Math.cos(
+                    2 *
+                    Math.PI *
+                    i /
+                    length
+                );
+    }
+
+    return window;
+}
+
+function fftReal(samples) {
+    const n =
+        samples.length;
+
+    const real =
+        new Float64Array(
+            samples
+        );
+
+    const imag =
+        new Float64Array(n);
+
+    let j = 0;
+
+    for (
+        let i = 1;
+        i < n;
+        i++
+    ) {
+        let bit =
+            n >> 1;
+
+        while (j & bit) {
+            j ^= bit;
+            bit >>= 1;
+        }
+
+        j ^= bit;
+
+        if (i < j) {
+            const temp =
+                real[i];
+
+            real[i] =
+                real[j];
+
+            real[j] =
+                temp;
+        }
+    }
+
+    for (
+        let size = 2;
+        size <= n;
+        size <<= 1
+    ) {
+        const angle =
+            -2 *
+            Math.PI /
+            size;
+
+        const wReal =
+            Math.cos(angle);
+
+        const wImag =
+            Math.sin(angle);
+
+        const half =
+            size >> 1;
+
+        for (
+            let start = 0;
+            start < n;
+            start += size
+        ) {
+            let currentReal = 1;
+            let currentImag = 0;
+
+            for (
+                let k = 0;
+                k < half;
+                k++
+            ) {
+                const even =
+                    start + k;
+
+                const odd =
+                    even + half;
+
+                const oddReal =
+                    real[odd] *
+                        currentReal -
+                    imag[odd] *
+                        currentImag;
+
+                const oddImag =
+                    real[odd] *
+                        currentImag +
+                    imag[odd] *
+                        currentReal;
+
+                const evenReal =
+                    real[even];
+
+                const evenImag =
+                    imag[even];
+
+                real[even] =
+                    evenReal +
+                    oddReal;
+
+                imag[even] =
+                    evenImag +
+                    oddImag;
+
+                real[odd] =
+                    evenReal -
+                    oddReal;
+
+                imag[odd] =
+                    evenImag -
+                    oddImag;
+
+                const nextReal =
+                    currentReal *
+                        wReal -
+                    currentImag *
+                        wImag;
+
+                currentImag =
+                    currentReal *
+                        wImag +
+                    currentImag *
+                        wReal;
+
+                currentReal =
+                    nextReal;
+            }
+        }
+    }
+
+    return {
+        real,
+        imag
+    };
+}
+
+function centerPadConstant(
+    samples,
+    size
+) {
+    const pad =
+        Math.floor(
+            size / 2
+        );
+
+    const output =
+        new Float64Array(
+            samples.length +
+            pad * 2
+        );
+
+    output.set(
+        samples,
+        pad
+    );
+
+    return output;
+}
+
+function centerPadEdge(
+    samples,
+    size
+) {
+    const pad =
+        Math.floor(
+            size / 2
+        );
+
+    const output =
+        new Float64Array(
+            samples.length +
+            pad * 2
+        );
+
+    for (
+        let i = 0;
+        i < output.length;
+        i++
+    ) {
+        const source =
+            Math.max(
+                0,
+                Math.min(
+                    samples.length - 1,
+                    i - pad
+                )
+            );
+
         output[i] =
-            samples[i] / peak;
+            samples[source];
     }
 
     return output;
 }
 
-function removeSilence(samples) {
-    let peak = 0;
+function frameAudio(
+    samples,
+    centerMode = "constant"
+) {
+    const padded =
+        centerMode === "edge"
+            ? centerPadEdge(
+                samples,
+                N_FFT
+            )
+            : centerPadConstant(
+                samples,
+                N_FFT
+            );
 
-    for (let i = 0; i < samples.length; i++) {
-        peak =
-            Math.max(
-                peak,
-                Math.abs(samples[i])
+    const frameCount =
+        1 +
+        Math.floor(
+            (
+                padded.length -
+                N_FFT
+            ) /
+            HOP_LENGTH
+        );
+
+    const frames =
+        new Array(
+            frameCount
+        );
+
+    const window =
+        hannWindow(N_FFT);
+
+    for (
+        let frame = 0;
+        frame < frameCount;
+        frame++
+    ) {
+        const start =
+            frame *
+            HOP_LENGTH;
+
+        const values =
+            new Float64Array(
+                N_FFT
+            );
+
+        for (
+            let i = 0;
+            i < N_FFT;
+            i++
+        ) {
+            values[i] =
+                padded[start + i] *
+                window[i];
+        }
+
+        frames[frame] =
+            values;
+    }
+
+    return frames;
+}
+
+function computeSTFTPower(
+    samples
+) {
+    const frames =
+        frameAudio(
+            samples,
+            "constant"
+        );
+
+    const bins =
+        N_FFT / 2 + 1;
+
+    const output =
+        new Array(
+            frames.length
+        );
+
+    for (
+        let frame = 0;
+        frame < frames.length;
+        frame++
+    ) {
+        const fft =
+            fftReal(
+                frames[frame]
+            );
+
+        const power =
+            new Float64Array(
+                bins
+            );
+
+        for (
+            let k = 0;
+            k < bins;
+            k++
+        ) {
+            power[k] =
+                (
+                    fft.real[k] *
+                    fft.real[k] +
+                    fft.imag[k] *
+                    fft.imag[k]
+                ) /
+                N_FFT;
+        }
+
+        output[frame] =
+            power;
+    }
+
+    return output;
+}
+
+function hzToMelSlaney(hz) {
+    if (hz < 1000) {
+        return hz / 200;
+    }
+
+    return 15 +
+        27 *
+        Math.log10(
+            hz / 1000
+        );
+}
+
+function melToHzSlaney(mel) {
+    if (mel < 15) {
+        return mel * 200;
+    }
+
+    return 1000 *
+        Math.pow(
+            10,
+            (mel - 15) / 27
+        );
+}
+
+function createMelFilterBank() {
+    const filters =
+        new Array(
+            N_MELS
+        );
+
+    const minMel =
+        hzToMelSlaney(0);
+
+    const maxMel =
+        hzToMelSlaney(
+            SAMPLE_RATE / 2
+        );
+
+    const melPoints =
+        new Float64Array(
+            N_MELS + 2
+        );
+
+    for (
+        let i = 0;
+        i < N_MELS + 2;
+        i++
+    ) {
+        melPoints[i] =
+            minMel +
+            (
+                maxMel -
+                minMel
+            ) *
+            i /
+            (N_MELS + 1);
+    }
+
+    const frequencies =
+        new Float64Array(
+            N_MELS + 2
+        );
+
+    for (
+        let i = 0;
+        i < frequencies.length;
+        i++
+    ) {
+        frequencies[i] =
+            melToHzSlaney(
+                melPoints[i]
             );
     }
 
-    if (peak < 0.0001) {
-        return new Float32Array(samples);
-    }
+    const bins =
+        N_FFT / 2 + 1;
 
-    const threshold =
-        peak * 0.03;
+    const fftFrequencies =
+        new Float64Array(
+            bins
+        );
 
-    let start = 0;
-    let end =
-        samples.length - 1;
-
-    while (
-        start < samples.length &&
-        Math.abs(samples[start]) < threshold
+    for (
+        let k = 0;
+        k < bins;
+        k++
     ) {
-        start++;
+        fftFrequencies[k] =
+            k *
+            SAMPLE_RATE /
+            N_FFT;
     }
 
-    while (
-        end > start &&
-        Math.abs(samples[end]) < threshold
+    for (
+        let m = 0;
+        m < N_MELS;
+        m++
     ) {
-        end--;
+        const filter =
+            new Float64Array(
+                bins
+            );
+
+        const lower =
+            frequencies[m];
+
+        const center =
+            frequencies[m + 1];
+
+        const upper =
+            frequencies[m + 2];
+
+        for (
+            let k = 0;
+            k < bins;
+            k++
+        ) {
+            const frequency =
+                fftFrequencies[k];
+
+            if (
+                frequency >= lower &&
+                frequency < center &&
+                center > lower
+            ) {
+                filter[k] =
+                    (
+                        frequency -
+                        lower
+                    ) /
+                    (
+                        center -
+                        lower
+                    );
+            } else if (
+                frequency >= center &&
+                frequency <= upper &&
+                upper > center
+            ) {
+                filter[k] =
+                    (
+                        upper -
+                        frequency
+                    ) /
+                    (
+                        upper -
+                        center
+                    );
+            }
+        }
+
+        let area = 0;
+
+        for (
+            let k = 0;
+            k < bins;
+            k++
+        ) {
+            area +=
+                filter[k];
+        }
+
+        if (area > 0) {
+            const binWidth =
+                SAMPLE_RATE /
+                N_FFT;
+
+            for (
+                let k = 0;
+                k < bins;
+                k++
+            ) {
+                filter[k] *=
+                    2 /
+                    (
+                        upper -
+                        lower
+                    );
+            }
+        }
+
+        filters[m] =
+            filter;
     }
 
-    return samples.slice(
-        start,
-        end + 1
-    );
+    return filters;
 }
 
-function calculateRMS(samples) {
-    if (!samples.length) {
+const MEL_FILTER_BANK =
+    createMelFilterBank();
+
+function dctTypeIIOrtho(
+    values,
+    outputCount
+) {
+    const n =
+        values.length;
+
+    const output =
+        new Float64Array(
+            outputCount
+        );
+
+    for (
+        let k = 0;
+        k < outputCount;
+        k++
+    ) {
+        let sum = 0;
+
+        for (
+            let i = 0;
+            i < n;
+            i++
+        ) {
+            sum +=
+                values[i] *
+                Math.cos(
+                    Math.PI *
+                    k *
+                    (
+                        2 * i + 1
+                    ) /
+                    (
+                        2 * n
+                    )
+                );
+        }
+
+        output[k] =
+            k === 0
+                ? sum *
+                    Math.sqrt(
+                        1 / n
+                    )
+                : sum *
+                    Math.sqrt(
+                        2 / n
+                    );
+    }
+
+    return output;
+}
+
+function computeMFCC(
+    powerFrames
+) {
+    const output =
+        new Array(
+            powerFrames.length
+        );
+
+    for (
+        let frame = 0;
+        frame < powerFrames.length;
+        frame++
+    ) {
+        const mel =
+            new Float64Array(
+                N_MELS
+            );
+
+        for (
+            let m = 0;
+            m < N_MELS;
+            m++
+        ) {
+            const filter =
+                MEL_FILTER_BANK[m];
+
+            let sum = 0;
+
+            for (
+                let k = 0;
+                k < filter.length;
+                k++
+            ) {
+                sum +=
+                    powerFrames[frame][k] *
+                    filter[k];
+            }
+
+            mel[m] =
+                Math.max(
+                    sum,
+                    Number.EPSILON
+                );
+        }
+
+        for (
+            let m = 0;
+            m < N_MELS;
+            m++
+        ) {
+            mel[m] =
+                Math.log(
+                    mel[m]
+                );
+        }
+
+        output[frame] =
+            dctTypeIIOrtho(
+                mel,
+                N_MFCC
+            );
+    }
+
+    return output;
+}
+
+function computeDelta(
+    matrix
+) {
+    const frames =
+        matrix.length;
+
+    if (!frames) {
+        return [];
+    }
+
+    const channels =
+        matrix[0].length;
+
+    const output =
+        new Array(
+            frames
+        );
+
+    const half = 4;
+
+    let denominator = 0;
+
+    for (
+        let i = 1;
+        i <= half;
+        i++
+    ) {
+        denominator +=
+            i * i;
+    }
+
+    denominator *= 2;
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        const row =
+            new Float64Array(
+                channels
+            );
+
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            let value = 0;
+
+            for (
+                let n = 1;
+                n <= half;
+                n++
+            ) {
+                const left =
+                    Math.max(
+                        0,
+                        t - n
+                    );
+
+                const right =
+                    Math.min(
+                        frames - 1,
+                        t + n
+                    );
+
+                value +=
+                    n *
+                    (
+                        matrix[right][c] -
+                        matrix[left][c]
+                    );
+            }
+
+            row[c] =
+                value /
+                denominator;
+        }
+
+        output[t] =
+            row;
+    }
+
+    return output;
+}
+
+function computeSpectralCentroid(
+    power,
+    frequencies
+) {
+    let total = 0;
+    let weighted = 0;
+
+    for (
+        let k = 0;
+        k < power.length;
+        k++
+    ) {
+        total += power[k];
+
+        weighted +=
+            power[k] *
+            frequencies[k];
+    }
+
+    if (total <= 0) {
         return 0;
     }
 
-    let sum = 0;
+    return weighted / total;
+}
 
-    for (let i = 0; i < samples.length; i++) {
-        sum +=
-            samples[i] *
-            samples[i];
+function computeSpectralBandwidth(
+    power,
+    frequencies,
+    centroid
+) {
+    let total = 0;
+    let weighted = 0;
+
+    for (
+        let k = 0;
+        k < power.length;
+        k++
+    ) {
+        total += power[k];
+
+        const difference =
+            frequencies[k] -
+            centroid;
+
+        weighted +=
+            power[k] *
+            difference *
+            difference;
+    }
+
+    if (total <= 0) {
+        return 0;
     }
 
     return Math.sqrt(
-        sum / samples.length
+        weighted / total
     );
 }
 
-function mean(values) {
-    if (!values.length) {
-        return 0;
-    }
-
+function computeSpectralRolloff(
+    power,
+    frequencies
+) {
     let total = 0;
 
-    for (const value of values) {
-        total += value;
+    for (
+        let k = 0;
+        k < power.length;
+        k++
+    ) {
+        total += power[k];
     }
 
-    return total / values.length;
-}
-
-function standardDeviation(values) {
-    if (!values.length) {
+    if (total <= 0) {
         return 0;
     }
 
-    const average =
-        mean(values);
+    const target =
+        total * 0.85;
 
+    let cumulative = 0;
+
+    for (
+        let k = 0;
+        k < power.length;
+        k++
+    ) {
+        cumulative += power[k];
+
+        if (
+            cumulative >= target
+        ) {
+            return frequencies[k];
+        }
+    }
+
+    return frequencies[
+        frequencies.length - 1
+    ];
+}
+
+function computeZeroCrossingRate(
+    samples
+) {
+    const padded =
+        centerPadEdge(
+            samples,
+            N_FFT
+        );
+
+    const frameCount =
+        1 +
+        Math.floor(
+            (
+                padded.length -
+                N_FFT
+            ) /
+            HOP_LENGTH
+        );
+
+    const output =
+        new Float64Array(
+            frameCount
+        );
+
+    for (
+        let frame = 0;
+        frame < frameCount;
+        frame++
+    ) {
+        const start =
+            frame *
+            HOP_LENGTH;
+
+        let crossings = 0;
+
+        for (
+            let i = 1;
+            i < N_FFT;
+            i++
+        ) {
+            const a =
+                padded[
+                    start + i - 1
+                ];
+
+            const b =
+                padded[
+                    start + i
+                ];
+
+            if (
+                (
+                    a < 0 &&
+                    b >= 0
+                ) ||
+                (
+                    a >= 0 &&
+                    b < 0
+                )
+            ) {
+                crossings++;
+            }
+        }
+
+        output[frame] =
+            crossings /
+            N_FFT;
+    }
+
+    return output;
+}
+
+function computeRMS(
+    samples
+) {
+    const padded =
+        centerPadConstant(
+            samples,
+            N_FFT
+        );
+
+    const frameCount =
+        1 +
+        Math.floor(
+            (
+                padded.length -
+                N_FFT
+            ) /
+            HOP_LENGTH
+        );
+
+    const output =
+        new Float64Array(
+            frameCount
+        );
+
+    for (
+        let frame = 0;
+        frame < frameCount;
+        frame++
+    ) {
+        const start =
+            frame *
+            HOP_LENGTH;
+
+        let sum = 0;
+
+        for (
+            let i = 0;
+            i < N_FFT;
+            i++
+        ) {
+            const value =
+                padded[
+                    start + i
+                ];
+
+            sum +=
+                value * value;
+        }
+
+        output[frame] =
+            Math.sqrt(
+                sum / N_FFT
+            );
+    }
+
+    return output;
+}
+
+function normalizeFeatureMatrix(
+    matrix
+) {
+    const frames =
+        matrix.length;
+
+    if (!frames) {
+        return matrix;
+    }
+
+    const channels =
+        matrix[0].length;
+
+    const mean =
+        new Float64Array(
+            channels
+        );
+
+    const std =
+        new Float64Array(
+            channels
+        );
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            mean[c] +=
+                matrix[t][c];
+        }
+    }
+
+    for (
+        let c = 0;
+        c < channels;
+        c++
+    ) {
+        mean[c] /=
+            frames;
+    }
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            const difference =
+                matrix[t][c] -
+                mean[c];
+
+            std[c] +=
+                difference *
+                difference;
+        }
+    }
+
+    for (
+        let c = 0;
+        c < channels;
+        c++
+    ) {
+        std[c] =
+            Math.sqrt(
+                std[c] /
+                frames
+            );
+
+        if (
+            std[c] < 1e-6
+        ) {
+            std[c] = 1;
+        }
+    }
+
+    const output =
+        new Array(
+            frames
+        );
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        const row =
+            new Float32Array(
+                channels
+            );
+
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            row[c] =
+                (
+                    matrix[t][c] -
+                    mean[c]
+                ) /
+                std[c];
+        }
+
+        output[t] =
+            row;
+    }
+
+    return output;
+}
+
+function extractFeatures(
+    inputSamples
+) {
+    const audio =
+        prepareAudio(
+            inputSamples
+        );
+
+    if (!audio.length) {
+        throw new Error(
+            "Audio recording is empty."
+        );
+    }
+
+    const powerFrames =
+        computeSTFTPower(
+            audio
+        );
+
+    const mfcc =
+        computeMFCC(
+            powerFrames
+        );
+
+    const delta =
+        computeDelta(
+            mfcc
+        );
+
+    const bins =
+        N_FFT / 2 + 1;
+
+    const frequencies =
+        new Float64Array(
+            bins
+        );
+
+    for (
+        let k = 0;
+        k < bins;
+        k++
+    ) {
+        frequencies[k] =
+            k *
+            SAMPLE_RATE /
+            N_FFT;
+    }
+
+    const centroids =
+        new Float64Array(
+            powerFrames.length
+        );
+
+    const bandwidths =
+        new Float64Array(
+            powerFrames.length
+        );
+
+    const rolloffs =
+        new Float64Array(
+            powerFrames.length
+        );
+
+    for (
+        let t = 0;
+        t < powerFrames.length;
+        t++
+    ) {
+        centroids[t] =
+            computeSpectralCentroid(
+                powerFrames[t],
+                frequencies
+            );
+
+        bandwidths[t] =
+            computeSpectralBandwidth(
+                powerFrames[t],
+                frequencies,
+                centroids[t]
+            );
+
+        rolloffs[t] =
+            computeSpectralRolloff(
+                powerFrames[t],
+                frequencies
+            );
+    }
+
+    const zeroCrossings =
+        computeZeroCrossingRate(
+            audio
+        );
+
+    const rms =
+        computeRMS(
+            audio
+        );
+
+    const frames =
+        powerFrames.length;
+
+    const featureMatrix =
+        new Array(frames);
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        const row =
+            new Float64Array(45);
+
+        let index = 0;
+
+        for (
+            let c = 0;
+            c < 20;
+            c++
+        ) {
+            row[index++] =
+                mfcc[t][c];
+        }
+
+        for (
+            let c = 0;
+            c < 20;
+            c++
+        ) {
+            row[index++] =
+                delta[t][c];
+        }
+
+        row[index++] =
+            centroids[t];
+
+        row[index++] =
+            bandwidths[t];
+
+        row[index++] =
+            rolloffs[t];
+
+        row[index++] =
+            zeroCrossings[t];
+
+        row[index++] =
+            rms[t];
+
+        featureMatrix[t] =
+            row;
+    }
+
+    return normalizeFeatureMatrix(
+        featureMatrix
+    );
+}
+
+function featureMean(
+    matrix
+) {
+    const frames =
+        matrix.length;
+
+    const channels =
+        matrix[0].length;
+
+    const output =
+        new Float64Array(
+            channels
+        );
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            output[c] +=
+                matrix[t][c];
+        }
+    }
+
+    for (
+        let c = 0;
+        c < channels;
+        c++
+    ) {
+        output[c] /=
+            frames;
+    }
+
+    return output;
+}
+
+function featureStd(
+    matrix,
+    mean
+) {
+    const frames =
+        matrix.length;
+
+    const channels =
+        matrix[0].length;
+
+    const output =
+        new Float64Array(
+            channels
+        );
+
+    for (
+        let t = 0;
+        t < frames;
+        t++
+    ) {
+        for (
+            let c = 0;
+            c < channels;
+            c++
+        ) {
+            const difference =
+                matrix[t][c] -
+                mean[c];
+
+            output[c] +=
+                difference *
+                difference;
+        }
+    }
+
+    for (
+        let c = 0;
+        c < channels;
+        c++
+    ) {
+        output[c] =
+            Math.sqrt(
+                output[c] /
+                frames
+            );
+    }
+
+    return output;
+}
+
+function euclideanDistance(
+    a,
+    b
+) {
     let sum = 0;
 
-    for (const value of values) {
+    for (
+        let i = 0;
+        i < 45;
+        i++
+    ) {
         const difference =
-            value - average;
+            a[i] -
+            b[i];
 
         sum +=
             difference *
             difference;
     }
 
-    return Math.sqrt(
-        sum / values.length
-    );
+    return Math.sqrt(sum);
 }
 
-function statistics(values) {
-    if (!values.length) {
-        return {
-            mean: 0,
-            std: 0,
-            min: 0,
-            max: 0,
-            median: 0
-        };
-    }
+function dtwDistance(
+    reference,
+    recording
+) {
+    const n =
+        reference.length;
 
-    const sorted =
-        [...values].sort(
-            (a, b) => a - b
-        );
+    const m =
+        recording.length;
 
-    const middle =
-        Math.floor(
-            sorted.length / 2
-        );
-
-    const median =
-        sorted.length % 2 === 0
-            ? (
-                sorted[middle - 1] +
-                sorted[middle]
-            ) / 2
-            : sorted[middle];
-
-    return {
-        mean: mean(values),
-        std: standardDeviation(values),
-        min: sorted[0],
-        max:
-            sorted[sorted.length - 1],
-        median
-    };
-}
-
-function computeDTW(a, b) {
-    if (!a.length || !b.length) {
+    if (
+        n === 0 ||
+        m === 0
+    ) {
         return Infinity;
     }
 
-    const n = a.length;
-    const m = b.length;
+    let previous =
+        new Float64Array(
+            m + 1
+        );
 
-    const previous =
-        new Float64Array(m + 1);
+    let current =
+        new Float64Array(
+            m + 1
+        );
 
-    const current =
-        new Float64Array(m + 1);
+    previous.fill(
+        Infinity
+    );
 
-    previous.fill(Infinity);
     previous[0] = 0;
 
-    for (let i = 1; i <= n; i++) {
-        current.fill(Infinity);
+    for (
+        let i = 1;
+        i <= n;
+        i++
+    ) {
+        current.fill(
+            Infinity
+        );
 
-        for (let j = 1; j <= m; j++) {
+        for (
+            let j = 1;
+            j <= m;
+            j++
+        ) {
             const cost =
-                Math.abs(
-                    a[i - 1] -
-                    b[j - 1]
+                euclideanDistance(
+                    reference[i - 1],
+                    recording[j - 1]
                 );
 
             current[j] =
@@ -1258,128 +2810,462 @@ function computeDTW(a, b) {
                 );
         }
 
-        previous.set(current);
+        const temp =
+            previous;
+
+        previous =
+            current;
+
+        current =
+            temp;
     }
 
-    return previous[m] /
-        Math.max(n, m);
-}
+    let i = n;
+    let j = m;
+    let pathLength = 1;
 
-function extractBasicFeatures(samples) {
-    const clean =
-        removeSilence(samples);
-
-    const normalized =
-        normalizeAudio(clean);
-
-    const rms =
-        calculateRMS(normalized);
-
-    const values = [];
-
-    const frameSize = 2048;
-    const hopSize = 512;
-
-    for (
-        let start = 0;
-        start + frameSize <= normalized.length;
-        start += hopSize
+    while (
+        i > 0 ||
+        j > 0
     ) {
-        let sum = 0;
+        if (i === 0) {
+            j--;
+        } else if (j === 0) {
+            i--;
+        } else {
+            const diagonal =
+                previous === null
+                    ? Infinity
+                    : Infinity;
 
-        for (
-            let i = 0;
-            i < frameSize;
-            i++
-        ) {
-            const value =
-                normalized[start + i];
+            let bestDirection;
 
-            sum +=
-                value * value;
+            if (
+                i === 1 &&
+                j === 1
+            ) {
+                bestDirection = 0;
+            } else {
+                const up =
+                    getDTWCell(
+                        reference,
+                        recording,
+                        i - 1,
+                        j
+                    );
+
+                const left =
+                    getDTWCell(
+                        reference,
+                        recording,
+                        i,
+                        j - 1
+                    );
+
+                const diag =
+                    getDTWCell(
+                        reference,
+                        recording,
+                        i - 1,
+                        j - 1
+                    );
+
+                if (
+                    diag <= up &&
+                    diag <= left
+                ) {
+                    bestDirection = 0;
+                } else if (
+                    up <= left
+                ) {
+                    bestDirection = 1;
+                } else {
+                    bestDirection = 2;
+                }
+            }
+
+            if (bestDirection === 0) {
+                i--;
+                j--;
+            } else if (bestDirection === 1) {
+                i--;
+            } else {
+                j--;
+            }
         }
 
-        values.push(
-            Math.sqrt(
-                sum / frameSize
-            )
-        );
+        pathLength++;
     }
 
-    return {
-        duration:
-            normalized.length /
-            SAMPLE_RATE,
-
-        rms,
-
-        frameValues: values,
-
-        statistics:
-            statistics(values)
-    };
+    return (
+        previous[m] /
+        pathLength
+    );
 }
 
-function buildFeatureVector(
+function getDTWCell(
+    reference,
     recording,
-    reference
+    i,
+    j
 ) {
-    const recordingFeatures =
-        extractBasicFeatures(
-            recording
+    if (
+        i < 0 ||
+        j < 0
+    ) {
+        return Infinity;
+    }
+
+    const n =
+        reference.length;
+
+    const m =
+        recording.length;
+
+    const width =
+        m + 1;
+
+    const matrix =
+        new Float64Array(
+            (n + 1) *
+            (m + 1)
         );
 
-    const referenceFeatures =
-        extractBasicFeatures(
+    matrix.fill(
+        Infinity
+    );
+
+    matrix[0] = 0;
+
+    for (
+        let r = 1;
+        r <= n;
+        r++
+    ) {
+        for (
+            let c = 1;
+            c <= m;
+            c++
+        ) {
+            const cost =
+                euclideanDistance(
+                    reference[r - 1],
+                    recording[c - 1]
+                );
+
+            matrix[
+                r * width + c
+            ] =
+                cost +
+                Math.min(
+                    matrix[
+                        (r - 1) *
+                        width + c
+                    ],
+                    matrix[
+                        r *
+                        width + c - 1
+                    ],
+                    matrix[
+                        (r - 1) *
+                        width + c - 1
+                    ]
+                );
+        }
+    }
+
+    return matrix[
+        i * width + j
+    ];
+}
+
+function compareFeatures(
+    reference,
+    recording
+) {
+    const n =
+        reference.length;
+
+    const m =
+        recording.length;
+
+    const width =
+        m + 1;
+
+    const matrix =
+        new Float64Array(
+            (n + 1) *
+            (m + 1)
+        );
+
+    matrix.fill(
+        Infinity
+    );
+
+    matrix[0] = 0;
+
+    for (
+        let i = 1;
+        i <= n;
+        i++
+    ) {
+        for (
+            let j = 1;
+            j <= m;
+            j++
+        ) {
+            const cost =
+                euclideanDistance(
+                    reference[i - 1],
+                    recording[j - 1]
+                );
+
+            matrix[
+                i * width + j
+            ] =
+                cost +
+                Math.min(
+                    matrix[
+                        (i - 1) *
+                        width + j
+                    ],
+                    matrix[
+                        i *
+                        width + j - 1
+                    ],
+                    matrix[
+                        (i - 1) *
+                        width + j - 1
+                    ]
+                );
+        }
+    }
+
+    let i = n;
+    let j = m;
+    let pathLength = 1;
+
+    while (
+        i > 0 ||
+        j > 0
+    ) {
+        if (i === 0) {
+            j--;
+        } else if (j === 0) {
+            i--;
+        } else {
+            const up =
+                matrix[
+                    (i - 1) *
+                    width + j
+                ];
+
+            const left =
+                matrix[
+                    i *
+                    width + j - 1
+                ];
+
+            const diagonal =
+                matrix[
+                    (i - 1) *
+                    width + j - 1
+                ];
+
+            if (
+                diagonal <= up &&
+                diagonal <= left
+            ) {
+                i--;
+                j--;
+            } else if (
+                up <= left
+            ) {
+                i--;
+            } else {
+                j--;
+            }
+        }
+
+        pathLength++;
+    }
+
+    const distance =
+        matrix[
+            n * width + m
+        ] /
+        pathLength;
+
+    const referenceMean =
+        featureMean(
             reference
         );
 
-    const recordingStats =
-        recordingFeatures.statistics;
+    const recordingMean =
+        featureMean(
+            recording
+        );
 
-    const referenceStats =
-        referenceFeatures.statistics;
+    const referenceStd =
+        featureStd(
+            reference,
+            referenceMean
+        );
 
-    const featureMeanDifference =
-        recordingStats.mean -
-        referenceStats.mean;
+    const recordingStd =
+        featureStd(
+            recording,
+            recordingMean
+        );
 
-    const featureStdDifference =
-        recordingStats.std -
-        referenceStats.std;
+    let meanDifference = 0;
+    let stdDifference = 0;
+
+    for (
+        let c = 0;
+        c < 45;
+        c++
+    ) {
+        meanDifference +=
+            Math.abs(
+                referenceMean[c] -
+                recordingMean[c]
+            );
+
+        stdDifference +=
+            Math.abs(
+                referenceStd[c] -
+                recordingStd[c]
+            );
+    }
+
+    meanDifference /= 45;
+    stdDifference /= 45;
+
+    const durationRatio =
+        m /
+        Math.max(
+            n,
+            1
+        );
 
     const durationDifference =
-        recordingFeatures.duration -
-        referenceFeatures.duration;
-
-    const dtw =
-        computeDTW(
-            recordingFeatures.frameValues,
-            referenceFeatures.frameValues
+        Math.abs(
+            1 -
+            durationRatio
         );
 
     return new Float32Array([
-        dtw,
-        featureMeanDifference,
-        featureStdDifference,
-        recordingStats.min -
-            referenceStats.min,
-        recordingStats.max -
-            referenceStats.max,
-        recordingStats.median -
-            referenceStats.median,
-        recordingStats.mean,
-        referenceStats.mean,
-        recordingStats.std,
-        referenceStats.std,
-        recordingStats.min,
-        referenceStats.min,
-        recordingStats.max,
-        referenceStats.max,
-        durationDifference,
-        recordingFeatures.duration -
-            referenceFeatures.duration
+        distance,
+        meanDifference,
+        stdDifference,
+        durationDifference
     ]);
+}
+
+function aggregateComparisons(
+    comparisons
+) {
+    const count =
+        comparisons.length;
+
+    if (!count) {
+        throw new Error(
+            "No reference comparisons available."
+        );
+    }
+
+    const meanFeatures =
+        new Float32Array(4);
+
+    const minFeatures =
+        new Float32Array(4);
+
+    const maxFeatures =
+        new Float32Array(4);
+
+    const medianFeatures =
+        new Float32Array(4);
+
+    for (
+        let c = 0;
+        c < 4;
+        c++
+    ) {
+        const values =
+            new Array(count);
+
+        for (
+            let i = 0;
+            i < count;
+            i++
+        ) {
+            values[i] =
+                comparisons[i][c];
+        }
+
+        let total = 0;
+
+        for (
+            let i = 0;
+            i < count;
+            i++
+        ) {
+            total += values[i];
+        }
+
+        meanFeatures[c] =
+            total / count;
+
+        values.sort(
+            (a, b) =>
+                a - b
+        );
+
+        minFeatures[c] =
+            values[0];
+
+        maxFeatures[c] =
+            values[count - 1];
+
+        const middle =
+            Math.floor(
+                count / 2
+            );
+
+        medianFeatures[c] =
+            count % 2 === 0
+                ? (
+                    values[middle - 1] +
+                    values[middle]
+                ) / 2
+                : values[middle];
+    }
+
+    const output =
+        new Float32Array(16);
+
+    output.set(
+        meanFeatures,
+        0
+    );
+
+    output.set(
+        minFeatures,
+        4
+    );
+
+    output.set(
+        maxFeatures,
+        8
+    );
+
+    output.set(
+        medianFeatures,
+        12
+    );
+
+    return output;
 }
 
 function scaleFeatures(
@@ -1387,46 +3273,27 @@ function scaleFeatures(
     scaler
 ) {
     if (
-        !scaler ||
-        !scaler.mean ||
-        !scaler.std
+        features.length !== 16
     ) {
         throw new Error(
-            "Scaler is not loaded."
-        );
-    }
-
-    if (
-        scaler.mean.length !==
-            features.length ||
-        scaler.std.length !==
-            features.length
-    ) {
-        throw new Error(
-            `Scaler expects ${scaler.mean.length} features, received ${features.length}.`
+            `Expected 16 features, received ${features.length}.`
         );
     }
 
     const output =
-        new Float32Array(
-            features.length
-        );
+        new Float32Array(16);
 
     for (
         let i = 0;
-        i < features.length;
+        i < 16;
         i++
     ) {
-        const std =
-            scaler.std[i];
-
         output[i] =
-            Math.abs(std) < 1e-12
-                ? 0
-                : (
-                    features[i] -
-                    scaler.mean[i]
-                ) / std;
+            (
+                features[i] -
+                scaler.mean[i]
+            ) /
+            scaler.std[i];
     }
 
     return output;
@@ -1455,7 +3322,7 @@ async function runONNX(
         new runtime.Tensor(
             "float32",
             features,
-            [1, features.length]
+            [1, 16]
         );
 
     const result =
@@ -1466,32 +3333,36 @@ async function runONNX(
     const outputName =
         session.outputNames[0];
 
-    return result[outputName];
+    return result[
+        outputName
+    ];
 }
 
-function convertPredictionToScore(output) {
-    const values =
-        Array.from(output.data);
+function convertPredictionToScore(
+    output
+) {
+    const value =
+        Number(
+            output.data[0]
+        );
 
-    let value =
-        Number(values[0]);
-
-    if (!Number.isFinite(value)) {
+    if (
+        !Number.isFinite(value)
+    ) {
         return 0;
     }
 
-    if (
-        value >= 0 &&
-        value <= 1
-    ) {
-        value *= 100;
+    let score = value;
+
+    if (score >= 0 && score <= 1) {
+        score *= 100;
     }
 
     return Math.max(
         0,
         Math.min(
             100,
-            Math.round(value)
+            Math.round(score)
         )
     );
 }
@@ -1515,14 +3386,49 @@ function displayScore(score) {
         } else if (score >= 75) {
             scoreMessage.textContent =
                 "Good pronunciation!";
-        } else if (score >= 60) {
+        } else if (score >= 50) {
             scoreMessage.textContent =
                 "Pretty good. Keep practicing!";
+        } else if (score >= 25) {
+            scoreMessage.textContent =
+                "Keep practicing and try again!";
         } else {
             scoreMessage.textContent =
                 "Keep practicing and try again!";
         }
     }
+}
+
+async function prepareReferenceFeatures(
+    key
+) {
+    if (referenceFeatures[key]) {
+        return referenceFeatures[key];
+    }
+
+    const loaded =
+        await loadReference(key);
+
+    const features =
+        new Array(
+            loaded.length
+        );
+
+    for (
+        let i = 0;
+        i < loaded.length;
+        i++
+    ) {
+        features[i] =
+            extractFeatures(
+                loaded[i].samples
+            );
+    }
+
+    referenceFeatures[key] =
+        features;
+
+    return features;
 }
 
 async function initializeAI() {
@@ -1542,14 +3448,21 @@ async function initializeAI() {
         aiStatus.textContent =
             "Loading pronunciation models...";
 
+        await loadAIModel("v01");
+        await loadAIModel("v02");
+
         await Promise.all([
-            loadAIModel("v01"),
-            loadAIModel("v02"),
             loadScaler("v01"),
             loadScaler("v02"),
             loadReference("v01"),
             loadReference("v02")
         ]);
+
+        aiStatus.textContent =
+            "Extracting reference features...";
+
+        await prepareReferenceFeatures("v01");
+        await prepareReferenceFeatures("v02");
 
         aiStatus.textContent =
             "Pronunciation AI ready.";
@@ -1591,9 +3504,9 @@ async function scoreRecording() {
         return;
     }
 
-    if (!references[key]) {
+    if (!referenceFeatures[key]) {
         aiStatus.textContent =
-            "The reference recording is not ready.";
+            "The reference recordings are not ready.";
 
         return;
     }
@@ -1608,21 +3521,54 @@ async function scoreRecording() {
     scoreButton.disabled = true;
     recordButton.disabled = true;
 
-    aiStatus.textContent =
-        "Analyzing pronunciation...";
-
     try {
-        const features =
-            buildFeatureVector(
-                recordedAudio.samples,
-                references[key].samples
+        aiStatus.textContent =
+            "Extracting pronunciation features...";
+
+        const recordingFeatures =
+            extractFeatures(
+                recordedAudio.samples
             );
+
+        aiStatus.textContent =
+            "Comparing with reference recordings...";
+
+        const comparisons = [];
+
+        for (
+            let i = 0;
+            i < referenceFeatures[key].length;
+            i++
+        ) {
+            comparisons.push(
+                compareFeatures(
+                    referenceFeatures[key][i],
+                    recordingFeatures
+                )
+            );
+        }
+
+        const features =
+            aggregateComparisons(
+                comparisons
+            );
+
+        if (
+            features.length !== 16
+        ) {
+            throw new Error(
+                `Expected 16 model features, received ${features.length}.`
+            );
+        }
 
         const scaled =
             scaleFeatures(
                 features,
                 scalers[key]
             );
+
+        aiStatus.textContent =
+            "Running pronunciation model...";
 
         const output =
             await runONNX(
@@ -1722,15 +3668,21 @@ document.addEventListener(
             return;
         }
 
-        if (event.key === "ArrowLeft") {
+        if (
+            event.key === "ArrowLeft"
+        ) {
             previousVerse();
         }
 
-        if (event.key === "ArrowRight") {
+        if (
+            event.key === "ArrowRight"
+        ) {
             nextVerse();
         }
 
-        if (event.code === "Space") {
+        if (
+            event.code === "Space"
+        ) {
             event.preventDefault();
             revealVerse();
         }

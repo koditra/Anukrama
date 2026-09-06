@@ -18,12 +18,11 @@ class PronunciationModel(nn.Module):
             nn.Dropout(0.10),
             nn.Linear(32, 16),
             nn.ReLU(),
-            nn.Linear(16, 1),
-            nn.Sigmoid()
+            nn.Linear(16, 1)
         )
 
     def forward(self, x):
-        return self.network(x) * 100.0
+        return self.network(x)
 
 for verse in range(1, 21):
     code = f"v{verse:02d}"
@@ -76,7 +75,8 @@ for verse in range(1, 21):
         output_path,
         input_names=["input"],
         output_names=["score"],
-        dynamo=True
+        dynamo=True,
+        external_data=False
     )
 
     print(f"Exported {code}")
