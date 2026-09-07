@@ -1,13 +1,8 @@
 const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
 const ASSET_VERSION = "raw-score-fix-2026-09-05";
-const AI_BACKEND_URL = (() => {
-    const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
-    const localHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
-    if (localHost) {
-        return "http://127.0.0.1:8123";
-    }
-    return "https://anukrama.hackclub.app";
-})();
+// The frontend is static on GitHub. The AI backend runs on the Nest VM, not on the
+// local machine, so use the public VM host instead of localhost.
+const AI_BACKEND_URL = "https://ash.hackclub.app";
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
@@ -61,6 +56,7 @@ const REFERENCE_DIRS = {
 let currentVerse = 1;
 let currentAudio = null;
 let onnxRuntime = null;
+let aiBackendReady = false;
 
 const models = {
     v01: null,
@@ -234,7 +230,14 @@ async function fetchBinary(url) {
 }
 
 function createWav(buffer) {
-    const pcm = new Int16Array(buffer);
+    const input = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    const pcm = new Int16Array(input.length);
+
+    for (let i = 0; i < input.length; i++) {
+        const clamped = Math.max(-1, Math.min(1, input[i]));
+        pcm[i] = Math.round(clamped * 32767);
+    }
+
     const channels = 1;
     const bitsPerSample = 16;
     const blockAlign = channels * bitsPerSample / 8;
@@ -290,8 +293,12 @@ function createWav(buffer) {
         );
     }
 
+    return wav;
+}
+
+function createWavBlob(buffer) {
     return new Blob(
-        [wav],
+        [createWav(buffer)],
         { type: "audio/wav" }
     );
 }
@@ -353,7 +360,7 @@ async function playPcm(path) {
         const buffer =
             await response.arrayBuffer();
 
-        const wav = createWav(buffer);
+        const wav = createWavBlob(buffer);
         const url = URL.createObjectURL(wav);
         const audio = new Audio(url);
 
@@ -1109,25 +1116,20 @@ function updateAIForVerse() {
         return;
     }
 
-    const key =
-        `v${String(currentVerse).padStart(2, "0")}`;
-
-    if (
-        models[key] &&
-        scalers[key] &&
-        referenceFeatures[key]
-    ) {
+    if (aiBackendReady) {
         aiStatus.textContent =
-            `Pronunciation AI ready — ${referenceFeatures[key].length} reference recordings.`;
+            "Pronunciation AI ready.";
 
         recordButton.disabled = false;
-    } else {
-        aiStatus.textContent =
-            "Loading pronunciation AI...";
-
-        recordButton.disabled = true;
-        scoreButton.disabled = true;
+        scoreButton.disabled = false;
+        return;
     }
+
+    aiStatus.textContent =
+        "Connecting to pronunciation AI...";
+
+    recordButton.disabled = true;
+    scoreButton.disabled = true;
 }
 
 function resampleAudio(
@@ -3480,11 +3482,11 @@ async function initializeAI() {
             throw new Error(`backend responded with ${response.status}`);
         }
 
-        aiStatus.textContent = "Pronunciation AI ready.";
-        recordButton.disabled = false;
-        scoreButton.disabled = false;
+        aiBackendReady = true;
+        updateAIForVerse();
     } catch (error) {
         console.error("AI initialization failed:", error);
+        aiBackendReady = false;
         aiStatus.textContent = `AI error: ${error.message}`;
         recordButton.disabled = true;
         scoreButton.disabled = true;
@@ -3504,8 +3506,8 @@ async function scoreRecording() {
     }
 
     const key = `v${String(currentVerse).padStart(2, "0")}`;
-    const wavBuffer = createWav(recordedAudio.samples);
-    const audioBase64 = arrayBufferToBase64(wavBuffer);
+    const wavArrayBuffer = createWav(recordedAudio.samples);
+    const audioBase64 = arrayBufferToBase64(wavArrayBuffer);
 
     scoreButton.disabled = true;
     recordButton.disabled = true;
