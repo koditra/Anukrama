@@ -3,7 +3,10 @@ const ASSET_VERSION = "raw-score-fix-2026-09-05";
 const AI_BACKEND_URL = (() => {
     const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
     const localHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
-    return localHost ? "http://127.0.0.1:8123" : "http://hackclub.app:8123";
+    if (localHost) {
+        return "http://127.0.0.1:8123";
+    }
+    return "https://anukrama.hackclub.app";
 })();
 
 const TOTAL_VERSES = 20;
