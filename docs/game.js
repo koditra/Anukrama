@@ -558,7 +558,11 @@ async function loadVerse(id) {
             );
         }
 
-        updateAIForVerse();
+        if (id === 1 || id === 2) {
+            await initializeAI();
+        } else {
+            updateAIForVerse();
+        }
     } catch (error) {
         console.error(error);
 
@@ -3653,6 +3657,18 @@ function evaluateAudioQuality(samples, referenceDurations = []) {
     };
 }
 
+function applyVerseScoreAdjustment(rawScore, key) {
+    if (key === "v01" && rawScore >= 30 && rawScore <= 50) {
+        const bonusStart = 0.10;
+        const bonusEnd = 0.35;
+        const progress = (rawScore - 30) / 20;
+        const bonusRatio = bonusStart + progress * (bonusEnd - bonusStart);
+        return Math.min(50, rawScore * (1 + bonusRatio));
+    }
+
+    return rawScore;
+}
+
 function displayScore(score) {
     if (aiResult) {
         aiResult.classList.remove(
@@ -3807,6 +3823,7 @@ async function scoreRecording() {
         const scaled = scaleFeatures(features, scaler);
         const output = await runONNX(key, scaled);
         const rawScore = convertPredictionToScore(output);
+        const verseAdjustedScore = applyVerseScoreAdjustment(rawScore, key);
 
         const durationPenalty =
             Math.min(0.5, Math.max(0, quality.durationDeviation * 0.75));
@@ -3816,7 +3833,7 @@ async function scoreRecording() {
                 0,
                 Math.min(
                     100,
-                    rawScore * (1 - durationPenalty)
+                    verseAdjustedScore * (1 - durationPenalty)
                 )
             );
 
