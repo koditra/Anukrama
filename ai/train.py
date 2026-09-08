@@ -129,6 +129,30 @@ def load_pcm(path):
     return audio
 
 
+def is_valid_speech_sample(
+    audio,
+    min_rms=0.0025,
+    min_peak=0.02,
+    min_active_ratio=0.025,
+    min_duration=0.3
+):
+    if len(audio) == 0:
+        return False
+
+    if len(audio) / SAMPLE_RATE < min_duration:
+        return False
+
+    peak = np.max(np.abs(audio))
+    rms = np.sqrt(np.mean(np.square(audio)))
+    active = np.mean(np.abs(audio) > 0.01)
+
+    return bool(
+        peak >= min_peak and
+        rms >= min_rms and
+        active >= min_active_ratio
+    )
+
+
 def extract_features(audio):
     audio = audio.astype(
         np.float32
@@ -383,6 +407,12 @@ def load_references(verse):
 
         audio = load_pcm(path)
 
+        if not is_valid_speech_sample(audio):
+            print(
+                f"  Skipping {filename}: no clear speech signal"
+            )
+            continue
+
         features = extract_features(
             audio
         )
@@ -453,6 +483,12 @@ def load_labeled_recordings(verse):
             continue
 
         audio = load_pcm(path)
+
+        if not is_valid_speech_sample(audio):
+            print(
+                f"  Skipping {filename}: no clear speech signal"
+            )
+            continue
 
         features = extract_features(
             audio
@@ -1172,6 +1208,12 @@ def score_recording(
     audio = load_pcm(
         test_path
     )
+
+    if not is_valid_speech_sample(audio):
+        raise ValueError(
+            "No clear verse pronunciation detected. "
+            "Please record the verse more clearly."
+        )
 
     print(
         f"Duration: "

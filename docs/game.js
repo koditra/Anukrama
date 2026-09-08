@@ -1459,7 +1459,7 @@ async function startRecording() {
         const gainNode =
             audioContext.createGain();
 
-        gainNode.gain.value = 0;
+        gainNode.gain.value = 1.0;
         sourceNode.connect(gainNode);
         gainNode.connect(processor);
         processor.connect(audioContext.destination);
@@ -3641,9 +3641,10 @@ function evaluateAudioQuality(samples, referenceDurations = []) {
 
     return {
         hasSpeech:
-            peak > 0.04 &&
-            rms > 0.006 &&
-            activeRatio > 0.08,
+            peak > 0.02 &&
+            rms > 0.0025 &&
+            activeRatio > 0.025 &&
+            durationSeconds >= 0.3,
         rms,
         peak,
         activeRatio,
