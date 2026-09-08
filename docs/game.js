@@ -3659,11 +3659,9 @@ function evaluateAudioQuality(samples, referenceDurations = []) {
 
 function applyVerseScoreAdjustment(rawScore, key) {
     if (key === "v01" && rawScore >= 30 && rawScore <= 50) {
-        const bonusStart = 0.10;
-        const bonusEnd = 0.35;
         const progress = (rawScore - 30) / 20;
-        const bonusRatio = bonusStart + progress * (bonusEnd - bonusStart);
-        return Math.min(50, rawScore * (1 + bonusRatio));
+        const bonusPercent = 0.10 + progress * 0.25;
+        return Math.min(50, rawScore * (1 + bonusPercent));
     }
 
     return rawScore;
@@ -3823,16 +3821,18 @@ async function scoreRecording() {
         const scaled = scaleFeatures(features, scaler);
         const output = await runONNX(key, scaled);
         const rawScore = convertPredictionToScore(output);
-        const verseAdjustedScore = applyVerseScoreAdjustment(rawScore, key);
 
         const durationPenalty =
-            Math.min(0.5, Math.max(0, quality.durationDeviation * 0.75));
+            Math.min(0.35, Math.max(0, quality.durationDeviation * 0.15));
+
+        const verseAdjustedScore =
+            applyVerseScoreAdjustment(rawScore, key);
 
         const adjustedScore =
             Math.max(
                 0,
                 Math.min(
-                    100,
+                    key === "v01" ? 50 : 100,
                     verseAdjustedScore * (1 - durationPenalty)
                 )
             );
