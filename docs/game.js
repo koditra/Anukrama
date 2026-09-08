@@ -1228,6 +1228,27 @@ async function loadReference(key) {
     return loaded;
 }
 
+function getVerseAIKey() {
+    if (currentVerse === 1) {
+        return "v01";
+    }
+
+    if (currentVerse === 2) {
+        return "v02";
+    }
+
+    return null;
+}
+
+function isVerseAIReady(key) {
+    return Boolean(
+        key &&
+        models[key] &&
+        scalers[key] &&
+        referenceFeatures[key]
+    );
+}
+
 function updateAIForVerse() {
     if (
         !aiStatus ||
@@ -1237,25 +1258,28 @@ function updateAIForVerse() {
         return;
     }
 
+    const verseKey = getVerseAIKey();
+
     if (
-        currentVerse !== 1 &&
-        currentVerse !== 2
+        !verseKey
     ) {
         aiStatus.textContent =
             "Pronunciation scoring is currently available for Verses 1 and 2.";
 
         recordButton.disabled = true;
         scoreButton.disabled = true;
+        aiBackendReady = false;
 
         return;
     }
 
-    if (aiBackendReady) {
+    if (isVerseAIReady(verseKey)) {
         aiStatus.textContent =
             "Pronunciation AI ready.";
 
         recordButton.disabled = false;
         scoreButton.disabled = false;
+        aiBackendReady = true;
         return;
     }
 
@@ -1264,6 +1288,7 @@ function updateAIForVerse() {
 
     recordButton.disabled = true;
     scoreButton.disabled = true;
+    aiBackendReady = false;
 }
 
 function resampleAudio(
@@ -3751,17 +3776,17 @@ async function initializeAI() {
         return;
     }
 
-    try {
-        const verseKey =
-            currentVerse === 1
-                ? "v01"
-                : currentVerse === 2
-                    ? "v02"
-                    : null;
+    const verseKey = getVerseAIKey();
 
-        if (!verseKey) {
-            throw new Error("Pronunciation scoring is only enabled for verses 1 and 2.");
-        }
+    if (!verseKey) {
+        aiBackendReady = false;
+        updateAIForVerse();
+        return;
+    }
+
+    try {
+        aiStatus.textContent =
+            `Connecting to pronunciation AI for ${verseKey}...`;
 
         await loadAIModel(verseKey);
         await loadScaler(verseKey);
