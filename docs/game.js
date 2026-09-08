@@ -1,8 +1,7 @@
 const BASE_URL = "https://raw.githubusercontent.com/koditra/Anukrama/main";
 const ASSET_VERSION = "raw-score-fix-2026-09-05";
-// The frontend is static on GitHub. The AI backend runs on the Nest VM, not on the
-// local machine, so use the public VM host instead of localhost.
-const AI_BACKEND_URL = "https://ash.hackclub.app";
+// Browser-native scoring path: load the trained ONNX model and scaler directly
+// from GitHub so the app works without any server-side scoring service.
 
 const TOTAL_VERSES = 20;
 const SAMPLE_RATE = 48000;
@@ -3471,16 +3470,20 @@ async function initializeAI() {
     }
 
     try {
-        const response = await fetch(`${AI_BACKEND_URL}/health`, {
-            method: "GET",
-            headers: {
-                "Accept": "application/json"
-            }
-        });
+        const verseKey =
+            currentVerse === 1
+                ? "v01"
+                : currentVerse === 2
+                    ? "v02"
+                    : null;
 
-        if (!response.ok) {
-            throw new Error(`backend responded with ${response.status}`);
+        if (!verseKey) {
+            throw new Error("Pronunciation scoring is only enabled for verses 1 and 2.");
         }
+
+        await loadAIModel(verseKey);
+        await loadScaler(verseKey);
+        await prepareReferenceFeatures(verseKey);
 
         aiBackendReady = true;
         updateAIForVerse();
@@ -3506,41 +3509,24 @@ async function scoreRecording() {
     }
 
     const key = `v${String(currentVerse).padStart(2, "0")}`;
-    const wavArrayBuffer = createWav(recordedAudio.samples);
-    const audioBase64 = arrayBufferToBase64(wavArrayBuffer);
 
     scoreButton.disabled = true;
     recordButton.disabled = true;
 
     try {
-        aiStatus.textContent = "Sending recording to AI backend...";
+        aiStatus.textContent = "Computing pronunciation score...";
 
-        const response = await fetch(`${AI_BACKEND_URL}/score`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({
-                verse: key,
-                audio: audioBase64,
-                sampleRate: SAMPLE_RATE
-            })
-        });
+        const scaler = await loadScaler(key);
+        const references = await prepareReferenceFeatures(key);
+        const recording = extractFeatures(recordedAudio.samples);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `backend responded with ${response.status}`);
-        }
+        const comparisons = references.map(reference => compareFeatures(reference, recording));
+        const features = aggregateComparisons(comparisons);
+        const scaled = scaleFeatures(features, scaler);
+        const output = await runONNX(key, scaled);
+        const score = convertPredictionToScore(output);
 
-        const payload = await response.json();
-        const score = Number(payload.score ?? 0);
-
-        if (!Number.isFinite(score)) {
-            throw new Error("The AI backend returned an invalid score.");
-        }
-
-        displayScore(Math.max(0, Math.min(100, Math.round(score))));
+        displayScore(score);
         aiStatus.textContent = "Pronunciation scored.";
     } catch (error) {
         console.error("Scoring failed:", error);
