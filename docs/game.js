@@ -3595,6 +3595,63 @@ function convertPredictionToScore(
     return score;
 }
 
+function evaluateAudioQuality(samples, referenceDurations = []) {
+    if (!samples || !samples.length) {
+        return {
+            hasSpeech: false,
+            rms: 0,
+            peak: 0,
+            activeRatio: 0,
+            durationSeconds: 0,
+            durationDeviation: Infinity
+        };
+    }
+
+    let energy = 0;
+    let peak = 0;
+    let active = 0;
+
+    for (let i = 0; i < samples.length; i++) {
+        const value = samples[i];
+        const mag = Math.abs(value);
+
+        energy += value * value;
+        peak = Math.max(peak, mag);
+
+        if (mag > 0.02) {
+            active++;
+        }
+    }
+
+    const rms = Math.sqrt(energy / samples.length);
+    const activeRatio = active / samples.length;
+    const durationSeconds = samples.length / SAMPLE_RATE;
+
+    let durationDeviation = 0;
+
+    if (referenceDurations.length) {
+        const averageReferenceDuration =
+            referenceDurations.reduce((sum, value) => sum + value, 0) /
+            referenceDurations.length;
+
+        durationDeviation =
+            Math.abs(durationSeconds - averageReferenceDuration) /
+            Math.max(averageReferenceDuration, 0.25);
+    }
+
+    return {
+        hasSpeech:
+            peak > 0.04 &&
+            rms > 0.006 &&
+            activeRatio > 0.08,
+        rms,
+        peak,
+        activeRatio,
+        durationSeconds,
+        durationDeviation
+    };
+}
+
 function displayScore(score) {
     if (aiResult) {
         aiResult.classList.remove(
@@ -3728,15 +3785,41 @@ async function scoreRecording() {
 
         const scaler = await loadScaler(key);
         const references = await prepareReferenceFeatures(key);
+        const referenceDurations =
+            references.map(reference => reference.length / SAMPLE_RATE);
         const recording = extractFeatures(recordedAudio.samples);
+        const quality =
+            evaluateAudioQuality(
+                recordedAudio.samples,
+                referenceDurations
+            );
+
+        if (!quality.hasSpeech) {
+            displayScore(0);
+            aiStatus.textContent =
+                "No clear verse pronunciation detected. Please chant the verse more clearly.";
+            return;
+        }
 
         const comparisons = references.map(reference => compareFeatures(reference, recording));
         const features = aggregateComparisons(comparisons);
         const scaled = scaleFeatures(features, scaler);
         const output = await runONNX(key, scaled);
-        const score = convertPredictionToScore(output);
+        const rawScore = convertPredictionToScore(output);
 
-        displayScore(score);
+        const durationPenalty =
+            Math.min(0.5, Math.max(0, quality.durationDeviation * 0.75));
+
+        const adjustedScore =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    rawScore * (1 - durationPenalty)
+                )
+            );
+
+        displayScore(Math.round(adjustedScore));
         aiStatus.textContent = "Pronunciation scored.";
     } catch (error) {
         console.error("Scoring failed:", error);
