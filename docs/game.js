@@ -84,6 +84,31 @@ let recordingChunks = [];
 let recordedAudio = null;
 let recordedSampleRate = SAMPLE_RATE;
 let isRecording = false;
+let activeRecordingSession = null;
+
+function getSupportedMediaRecorderMimeType() {
+    const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/wav",
+        "audio/x-wav"
+    ];
+
+    if (typeof MediaRecorder === "undefined") {
+        return "";
+    }
+
+    for (const mimeType of candidates) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+            return mimeType;
+        }
+    }
+
+    return "";
+}
 
 const verseNumber = document.getElementById("verseNumber");
 const progressText = document.getElementById("progressText");
@@ -229,13 +254,13 @@ async function fetchBinary(url) {
 }
 
 function createWav(buffer) {
-    const input = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
-    const pcm = new Int16Array(input.length);
+    const input =
+        buffer instanceof Float32Array
+            ? buffer
+            : new Float32Array(buffer);
 
-    for (let i = 0; i < input.length; i++) {
-        const clamped = Math.max(-1, Math.min(1, input[i]));
-        pcm[i] = Math.round(clamped * 32767);
-    }
+    const pcm =
+        float32ToInt16PCM(input);
 
     const channels = 1;
     const bitsPerSample = 16;
@@ -1059,6 +1084,59 @@ function pcmToFloat32(buffer) {
     return output;
 }
 
+function float32ToInt16PCM(samples) {
+    const output =
+        new Int16Array(
+            samples.length
+        );
+
+    for (
+        let i = 0;
+        i < samples.length;
+        i++
+    ) {
+        const value =
+            Number(samples[i]) || 0;
+
+        const clamped =
+            Math.max(
+                -1,
+                Math.min(
+                    1,
+                    value
+                )
+            );
+
+        const quantized =
+            clamped < 0
+                ? clamped * 32768
+                : clamped * 32767;
+
+        output[i] =
+            Math.round(quantized);
+    }
+
+    return output;
+}
+
+function createRawPCMBlob(samples) {
+    const pcm =
+        samples instanceof Int16Array
+            ? samples
+            : float32ToInt16PCM(samples);
+
+    return new Blob(
+        [
+            new Uint8Array(
+                pcm.buffer,
+                pcm.byteOffset,
+                pcm.byteLength
+            )
+        ],
+        { type: "application/octet-stream" }
+    );
+}
+
 async function loadReference(key) {
     if (references[key]) {
         return references[key];
@@ -1206,14 +1284,54 @@ async function decodeRecordedAudio(blob) {
     const channel =
         decoded.getChannelData(0);
 
-    return {
-        samples: resampleAudio(
+    const samples =
+        resampleAudio(
             channel,
             decoded.sampleRate,
             SAMPLE_RATE
-        ),
-        sampleRate: SAMPLE_RATE
+        );
+
+    const pcm =
+        float32ToInt16PCM(samples);
+
+    return {
+        samples,
+        sampleRate: SAMPLE_RATE,
+        pcm,
+        rawPCM: new Uint8Array(
+            pcm.buffer,
+            pcm.byteOffset,
+            pcm.byteLength
+        )
     };
+}
+
+function mergeFloat32Chunks(chunks) {
+    const totalLength =
+        chunks.reduce(
+            (sum, chunk) =>
+                sum + chunk.length,
+            0
+        );
+
+    if (!totalLength) {
+        return new Float32Array(0);
+    }
+
+    const merged =
+        new Float32Array(totalLength);
+
+    let offset = 0;
+
+    for (const chunk of chunks) {
+        merged.set(
+            chunk,
+            offset
+        );
+        offset += chunk.length;
+    }
+
+    return merged;
 }
 
 async function startRecording() {
@@ -1243,114 +1361,153 @@ async function startRecording() {
                 }
             });
 
-        recordingChunks = [];
+        if (!audioContext) {
+            const AudioCtor =
+                window.AudioContext ||
+                window.webkitAudioContext;
 
-        mediaRecorder =
-            new MediaRecorder(
+            if (!AudioCtor) {
+                throw new Error(
+                    "Web Audio is not supported in this browser."
+                );
+            }
+
+            audioContext =
+                new AudioCtor();
+        }
+
+        if (audioContext.state === "suspended") {
+            await audioContext.resume();
+        }
+
+        const sourceNode =
+            audioContext.createMediaStreamSource(
                 mediaStream
             );
 
-        mediaRecorder.addEventListener(
-            "dataavailable",
-            event => {
-                if (
-                    event.data.size > 0
-                ) {
-                    recordingChunks.push(
-                        event.data
-                    );
-                }
-            }
-        );
+        const processor =
+            audioContext.createScriptProcessor(
+                4096,
+                1,
+                1
+            );
 
-        mediaRecorder.addEventListener(
-            "stop",
-            async () => {
-                const mimeType =
-                    mediaRecorder.mimeType;
+        const chunks = [];
 
-                const blob =
-                    new Blob(
-                        recordingChunks,
-                        {
-                            type: mimeType
-                        }
-                    );
+        processor.onaudioprocess = event => {
+            const input =
+                event.inputBuffer.getChannelData(0);
 
-                mediaStream
-                    .getTracks()
-                    .forEach(
-                        track =>
-                            track.stop()
-                    );
+            chunks.push(
+                new Float32Array(input)
+            );
+        };
 
-                mediaStream = null;
-                isRecording = false;
+        const gainNode =
+            audioContext.createGain();
 
-                recordButton.textContent =
-                    "Record pronunciation";
+        gainNode.gain.value = 0;
+        sourceNode.connect(gainNode);
+        gainNode.connect(processor);
+        processor.connect(audioContext.destination);
 
-                scoreButton.disabled = true;
+        activeRecordingSession = {
+            sourceNode,
+            processor,
+            gainNode,
+            chunks
+        };
 
-                aiStatus.textContent =
-                    "Processing recording...";
-
-                try {
-                    const decoded =
-                        await decodeRecordedAudio(
-                            blob
-                        );
-
-                    recordedAudio =
-                        decoded;
-
-                    recordedSampleRate =
-                        decoded.sampleRate;
-
-                    scoreButton.disabled =
-                        false;
-
-                    aiStatus.textContent =
-                        "Recording ready to score.";
-                } catch (error) {
-                    console.error(error);
-
-                    recordedAudio = null;
-
-                    aiStatus.textContent =
-                        `Audio processing error: ${error.message}`;
-
-                    scoreButton.disabled =
-                        true;
-                }
-            }
-        );
-
-        mediaRecorder.start();
-
+        recordingChunks = [];
+        mediaRecorder = null;
         isRecording = true;
 
         scoreButton.disabled = true;
-
         recordButton.textContent =
             "Stop recording";
-
         aiStatus.textContent =
             `Recording verse ${currentVerse}...`;
     } catch (error) {
         console.error(error);
-
         aiStatus.textContent =
             `Microphone error: ${error.message}`;
     }
 }
 
 function stopRecording() {
-    if (
-        mediaRecorder &&
-        mediaRecorder.state === "recording"
-    ) {
-        mediaRecorder.stop();
+    const session =
+        activeRecordingSession;
+
+    if (!session) {
+        return;
+    }
+
+    try {
+        session.sourceNode.disconnect();
+        session.processor.disconnect();
+        session.gainNode.disconnect();
+    } catch (error) {
+        console.warn("Recording cleanup warning:", error);
+    }
+
+    const rawSamples =
+        mergeFloat32Chunks(
+            session.chunks
+        );
+
+    mediaStream
+        ?.getTracks()
+        .forEach(track => track.stop());
+
+    mediaStream = null;
+    activeRecordingSession = null;
+    isRecording = false;
+
+    recordButton.textContent =
+        "Record pronunciation";
+    scoreButton.disabled = true;
+    aiStatus.textContent =
+        "Processing recording...";
+
+    try {
+        const sourceRate =
+            audioContext?.sampleRate ||
+            SAMPLE_RATE;
+
+        const samples =
+            resampleAudio(
+                rawSamples,
+                sourceRate,
+                SAMPLE_RATE
+            );
+
+        const pcm =
+            float32ToInt16PCM(samples);
+
+        recordedAudio = {
+            samples,
+            sampleRate: SAMPLE_RATE,
+            pcm,
+            rawPCM: new Uint8Array(
+                pcm.buffer,
+                pcm.byteOffset,
+                pcm.byteLength
+            ),
+            pcmBlob: createRawPCMBlob(samples)
+        };
+
+        recordedSampleRate =
+            SAMPLE_RATE;
+
+        scoreButton.disabled = false;
+        aiStatus.textContent =
+            "Recording ready to score.";
+    } catch (error) {
+        console.error(error);
+        recordedAudio = null;
+        aiStatus.textContent =
+            `Audio processing error: ${error.message}`;
+        scoreButton.disabled = true;
     }
 }
 
