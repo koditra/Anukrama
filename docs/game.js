@@ -1275,7 +1275,7 @@ function updateAIForVerse() {
 
     if (isVerseAIReady(verseKey)) {
         aiStatus.textContent =
-            "Pronunciation AI ready.";
+            "Beta AI feature: there is not enough Bhagavad Gita data to train every verse, and v01/v02 are still unreliable because the test recordings were self-made.";
 
         recordButton.disabled = false;
         scoreButton.disabled = false;
@@ -1284,7 +1284,7 @@ function updateAIForVerse() {
     }
 
     aiStatus.textContent =
-        "Connecting to pronunciation AI...";
+        "Beta AI feature: connecting to a limited, experimental model for this verse...";
 
     recordButton.disabled = true;
     scoreButton.disabled = true;
@@ -1433,6 +1433,9 @@ async function startRecording() {
     }
 
     try {
+        aiStatus.textContent =
+            "Beta AI feature: there is not enough Bhagavad Gita data to train every verse, and v01/v02 are still unreliable because the test recordings were self-made.";
+
         mediaStream =
             await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -3685,7 +3688,7 @@ function evaluateAudioQuality(samples, referenceDurations = []) {
 function applyVerseScoreAdjustment(rawScore, key) {
     if (key === "v01" && rawScore >= 30 && rawScore <= 50) {
         const progress = (rawScore - 30) / 20;
-        const bonusPercent = 0.10 + progress * 0.25;
+        const bonusPercent = 0.08 + progress * 0.18;
         return Math.min(50, rawScore * (1 + bonusPercent));
     }
 
@@ -3857,7 +3860,7 @@ async function scoreRecording() {
             Math.max(
                 0,
                 Math.min(
-                    key === "v01" ? 50 : 100,
+                    key === "v01" ? 50 : 80,
                     verseAdjustedScore * (1 - durationPenalty)
                 )
             );
