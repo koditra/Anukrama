@@ -327,6 +327,57 @@ function createWavBlob(buffer) {
     );
 }
 
+function createWavBlobFromRawPCM(rawPCMBytes) {
+    const bytes =
+        rawPCMBytes instanceof Uint8Array
+            ? rawPCMBytes
+            : new Uint8Array(rawPCMBytes);
+
+    if (bytes.length % 2 !== 0) {
+        throw new Error(
+            "Raw PCM data must contain an even number of bytes."
+        );
+    }
+
+    const wav =
+        new ArrayBuffer(
+            44 + bytes.length
+        );
+
+    const view =
+        new DataView(wav);
+
+    function writeString(offset, value) {
+        for (let i = 0; i < value.length; i++) {
+            view.setUint8(
+                offset + i,
+                value.charCodeAt(i)
+            );
+        }
+    }
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + bytes.length, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, SAMPLE_RATE, true);
+    view.setUint32(28, SAMPLE_RATE * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, bytes.length, true);
+
+    new Uint8Array(wav, 44).set(bytes);
+
+    return new Blob(
+        [wav],
+        { type: "audio/wav" }
+    );
+}
+
 async function stopCurrentAudio() {
     if (!currentAudio) {
         return;
@@ -384,7 +435,9 @@ async function playPcm(path) {
         const buffer =
             await response.arrayBuffer();
 
-        const wav = createWavBlob(buffer);
+        const wav = createWavBlobFromRawPCM(
+            new Uint8Array(buffer)
+        );
         const url = URL.createObjectURL(wav);
         const audio = new Audio(url);
 
