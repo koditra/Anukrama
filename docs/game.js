@@ -129,6 +129,131 @@ const aiResult = document.getElementById("aiResult");
 const scoreValue = document.getElementById("scoreValue");
 const scoreMessage = document.getElementById("scoreMessage");
 
+const AI_WARNING_STORAGE_KEY = "anukrama_ai_warning_acknowledged";
+let aiWarningModal = null;
+
+function ensureAiWarningModal() {
+    if (aiWarningModal) {
+        return aiWarningModal;
+    }
+
+    const modal = document.createElement("div");
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.background = "rgba(0, 0, 0, 0.72)";
+    modal.style.display = "flex";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.zIndex = "99999";
+    modal.style.padding = "20px";
+
+    const panel = document.createElement("div");
+    panel.style.background = "#111827";
+    panel.style.color = "#f9fafb";
+    panel.style.border = "1px solid rgba(255,255,255,0.2)";
+    panel.style.borderRadius = "14px";
+    panel.style.maxWidth = "560px";
+    panel.style.width = "100%";
+    panel.style.padding = "24px";
+    panel.style.boxShadow = "0 18px 60px rgba(0,0,0,0.35)";
+
+    const title = document.createElement("h3");
+    title.textContent = "Experimental AI Warning";
+    title.style.margin = "0 0 12px";
+
+    const text = document.createElement("p");
+    text.textContent = "This pronunciation AI is a beta feature. There is not enough Bhagavad Gita training data for all verses, and the v01/v02 model is still unreliable because the test recordings were self-made.";
+    text.style.margin = "0 0 16px";
+    text.style.lineHeight = "1.5";
+
+    const checkboxWrap = document.createElement("label");
+    checkboxWrap.style.display = "flex";
+    checkboxWrap.style.alignItems = "center";
+    checkboxWrap.style.gap = "10px";
+    checkboxWrap.style.marginBottom = "18px";
+    checkboxWrap.style.fontSize = "15px";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+
+    const checkboxLabel = document.createElement("span");
+    checkboxLabel.textContent = "I acknowledge this";
+
+    checkboxWrap.appendChild(checkbox);
+    checkboxWrap.appendChild(checkboxLabel);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Continue";
+    button.disabled = true;
+    button.style.padding = "10px 16px";
+    button.style.borderRadius = "10px";
+    button.style.border = "none";
+    button.style.background = "#f59e0b";
+    button.style.color = "#111827";
+    button.style.cursor = "pointer";
+    button.style.fontWeight = "700";
+
+    checkbox.addEventListener("change", () => {
+        button.disabled = !checkbox.checked;
+    });
+
+    button.addEventListener("click", () => {
+        try {
+            localStorage.setItem(AI_WARNING_STORAGE_KEY, "true");
+        } catch (error) {
+            // ignore storage issues and still close the modal
+        }
+
+        modal.style.display = "none";
+
+        if (recordButton) {
+            recordButton.disabled = false;
+        }
+
+        if (scoreButton) {
+            scoreButton.disabled = false;
+        }
+    });
+
+    panel.appendChild(title);
+    panel.appendChild(text);
+    panel.appendChild(checkboxWrap);
+    panel.appendChild(button);
+    modal.appendChild(panel);
+    document.body.appendChild(modal);
+
+    aiWarningModal = modal;
+    return modal;
+}
+
+function maybeShowAiWarningModal() {
+    const modal = ensureAiWarningModal();
+
+    let acknowledged = false;
+
+    try {
+        acknowledged = localStorage.getItem(AI_WARNING_STORAGE_KEY) === "true";
+    } catch (error) {
+        acknowledged = false;
+    }
+
+    if (acknowledged) {
+        modal.style.display = "none";
+        return;
+    }
+
+    if (recordButton) {
+        recordButton.disabled = true;
+    }
+
+    if (scoreButton) {
+        scoreButton.disabled = true;
+    }
+
+    modal.style.display = "flex";
+}
+
 async function loadONNXRuntime() {
     if (onnxRuntime) {
         return onnxRuntime;
@@ -3689,7 +3814,7 @@ function applyVerseScoreAdjustment(rawScore, key) {
     if (key === "v01" && rawScore >= 30 && rawScore <= 50) {
         const progress = (rawScore - 30) / 20;
         const bonusPercent = 0.08 + progress * 0.18;
-        return Math.min(50, rawScore * (1 + bonusPercent));
+        return rawScore * (1 + bonusPercent);
     }
 
     return rawScore;
@@ -3796,6 +3921,7 @@ async function initializeAI() {
         await prepareReferenceFeatures(verseKey);
 
         aiBackendReady = true;
+        maybeShowAiWarningModal();
         updateAIForVerse();
     } catch (error) {
         console.error("AI initialization failed:", error);
@@ -3856,12 +3982,15 @@ async function scoreRecording() {
         const verseAdjustedScore =
             applyVerseScoreAdjustment(rawScore, key);
 
+        const unstableMultiplier =
+            1.85 + Math.random() * 0.05;
+
         const adjustedScore =
             Math.max(
                 0,
                 Math.min(
-                    key === "v01" ? 50 : 80,
-                    verseAdjustedScore * (1 - durationPenalty)
+                    100,
+                    verseAdjustedScore * (1 - durationPenalty) * unstableMultiplier
                 )
             );
 
